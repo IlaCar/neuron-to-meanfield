@@ -1,0 +1,17 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Folder containing tests
+tests
+
+# Folder containing pdf of the figures
+figures
+
+# Svg that might get saved
+*.svg
+
+# Personal worklog
+worklog.txt
