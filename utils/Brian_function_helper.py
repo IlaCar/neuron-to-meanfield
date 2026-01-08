@@ -48,7 +48,7 @@ def setting_simulation_Brian(idx = None, N_cell = None, neuron_model = None, jso
     if neuron_model == 'FS' or neuron_model == 'RS':
         if sim_info == True:
             print(f'neuron model: {neuron_model}')
-        V_th_value = data[0][idx]['model']['V_peak']
+        V_th_value = data[0][idx]['model']['V_peak_detect']
         V_reset_value = data[0][idx]['model']['V_reset']
         t_ref_value = data[0][idx]['model']['t_ref']
         b_value = data[0][idx]['model']['b']
@@ -217,3 +217,28 @@ def extracting_single_pop_freq_and_std(sim_duration = None,
         pdb.set_trace()
     
     return mean_rate_stim, std_rate_stim
+
+def network_creation(conn_prob = None, 
+                     pop_1 = None, pop_2 = None,
+                     Qe_FS = None, Qi_FS = None,
+                     Qe_RS = None, Qi_RS = None,
+                     seed = None):
+
+    if seed is not None:
+        b2.seed(seed)  # to control the connectivity
+
+    S_11 = b2.Synapses(pop_1, pop_1, on_pre='GsynI_post+=Qi_FS', name = 'S_11')
+    S_11.connect('i!=j',p=conn_prob)
+    
+    S_12 = b2.Synapses(pop_1, pop_2, on_pre='GsynI_post+=Qi_RS', name = 'S_12')
+    S_12.connect(p=conn_prob)
+    
+  
+    S_21 = b2.Synapses(pop_2, pop_1, on_pre='GsynE_post+=Qe_FS', name = 'S_21') 
+    S_21.connect(p=conn_prob)
+    
+    S_22 = b2.Synapses(pop_2, pop_2, on_pre='GsynE_post+=Qe_RS', name = 'S_22') 
+    S_22.connect('i!=j', p=conn_prob)
+    
+
+    return S_11, S_12, S_21, S_22
