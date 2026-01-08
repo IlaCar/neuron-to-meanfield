@@ -26,7 +26,7 @@ Ei:volt
 Tsyn:second
 '''
 
-
+# -------------------- #
 def setting_simulation_Brian(idx = None, N_cell = None, neuron_model = None, json_file_name = None, curr_inj = None, sim_info = False):
     if N_cell == None:
         N_cell = 1
@@ -82,7 +82,7 @@ def setting_simulation_Brian(idx = None, N_cell = None, neuron_model = None, jso
 
         return G
 
-
+# -------------------- #
 def network_creation(conn_prob = None, 
                      pop_1 = None, pop_2 = None,
                      Qe = None, Qi = None,
@@ -108,7 +108,7 @@ def network_creation(conn_prob = None,
 
     return S_11, S_12, S_21, S_22
 
-
+# -------------------- #
 def extracting_pop_freq_and_std(sim_duration = None, 
                               p_start = None,
                               p_end = None,
@@ -173,6 +173,7 @@ def extracting_pop_freq_and_std(sim_duration = None,
     
     return mean_rates, std_rates
 
+# -------------------- #
 def extracting_single_pop_freq_and_std(sim_duration = None, 
                               p_start = None,
                               p_end = None,
@@ -218,6 +219,7 @@ def extracting_single_pop_freq_and_std(sim_duration = None,
     
     return mean_rate_stim, std_rate_stim
 
+# -------------------- #
 def network_creation(conn_prob = None, 
                      pop_1 = None, pop_2 = None,
                      Qe_FS = None, Qi_FS = None,
