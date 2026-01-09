@@ -13,5 +13,8 @@ figures
 # Svg that might get saved
 *.svg
 
+# HDF5 files that might get saved
+*.h5
+
 # Personal worklog
 worklog.txt
