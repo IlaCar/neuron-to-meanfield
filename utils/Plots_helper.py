@@ -12,7 +12,8 @@ import brian2 as b2
 
 # -------------------- #
 color_palette = {"FS": '#cb181d',
-                 "RS": '#238b45'}
+                 "RS": '#238b45',
+                 "input": '#9ecae1'}
 
 # -------------------- #                 
 def get_pretty_voltage(volt, thresh):
@@ -65,9 +66,35 @@ def plotting_3_traces_per_population(pop1 = None,
     return fig
 
 # -------------------- #
+def plotting_3_traces(neuron_model = None,
+                      pop = None, 
+                      input_interval = None):
+
+    if neuron_model == 'FS':
+        colors = ['#67000d', '#cb181d', '#fb6a4a']
+    if neuron_model == 'RS':
+        colors = ['#00441b', '#238b45', '#74c476']
+    
+    fig, ax = plt.subplots(figsize=(10, 6), sharex=True)
+    ax.plot(pop.t/b2.second, pop.v[0] / b2.mV, color='#67000d')
+    ax.plot(pop.t/b2.second, get_pretty_voltage(pop.v[0], -50) / b2.mV, '--', color=colors[0])
+    ax.plot(pop.t/b2.second, pop.v[1] / b2.mV, color='#cb181d')
+    ax.plot(pop.t/b2.second, get_pretty_voltage(pop.v[1], -50) / b2.mV, '--', color=colors[1])
+    ax.plot(pop.t/b2.second, pop.v[2] / b2.mV, color='#fb6a4a')
+    ax.plot(pop.t/b2.second, get_pretty_voltage(pop.v[2], -50) / b2.mV, '--', color=colors[2])
+    ax.set_title(f'Selected {neuron_model} traces')
+    
+    ax.set_xlabel('Time (ms)')
+    ax.set_ylabel('Membrane potential (mV)')
+    
+    plt.tight_layout()
+    return fig
+
+# -------------------- #
 def add_input_boxes(ax,
                     exc_intervals = None,
                     inh_intervals = None,
+                    input_interval = None,
                     n_neurons = None,
                     box_height = 300,
                     pad = 200,
@@ -132,7 +159,31 @@ def add_input_boxes(ax,
                     fontsize=14,
                     weight="bold",
                 )
+                
+    # general input -- exc and inh together
+    if input_interval is not None:
+        for t0, t1 in input_interval:
+            rect = patches.Rectangle(
+                (t0, y_pad),
+                t1 - t0,
+                box_height,
+                facecolor=color_palette["input"],
+                edgecolor=None,
+                alpha=alpha,
+            )
+            ax.add_patch(rect)
 
+            if annotate:
+                ax.text(
+                    (t0 + t1) / 2,
+                    y_pad + box_height / 2,
+                    "*",
+                    ha="center",
+                    va="center",
+                    fontsize=14,
+                    weight="bold",
+                )
+    
     return ax
 
 # -------------------- #
@@ -229,7 +280,11 @@ def bin_align_intervals(intervals, bin_size, time_bins):
     exactly the bins that contain input.
     """
     aligned = []
-    for t0, t1, pop in intervals:
+
+    #for t0, t1, pop in intervals:
+    for t0, t1, *res in intervals:
+        pop = res[0] if res else None
+        
         # bins that contain input
         k0 = int(np.floor(t0 / bin_size))
         k1 = int(np.ceil(t1 / bin_size)) - 1
@@ -245,7 +300,10 @@ def bin_align_intervals(intervals, bin_size, time_bins):
         t0_aligned = time_bins[k0]
         t1_aligned = time_bins[k1]
 
-        aligned.append((t0_aligned, t1_aligned, pop))
+        if pop is not None:
+            aligned.append((t0_aligned, t1_aligned, pop))
+        else:
+            aligned.append((t0_aligned, t1_aligned))
 
     return aligned
     
@@ -502,4 +560,114 @@ def plotting_pop_freq_and_std_h5(sim_duration = None,
     ax.set_yticks(ticks[ticks >= 0])
     plt.legend()
     plt.tight_layout()
+    return fig
+
+# -------------------- #
+def disconnected_network_raster_plot_TF(neuron_model=None,
+                                       pop=None, 
+                                       N_pop=None,
+                                       markersize=None,
+                                       input_interval = None,
+                                       x_lim=None
+                                       ):
+    
+    m_size = 1 if markersize is None else markersize
+        
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.plot(pop.t / b2.second, pop.i, 'o', color=color_palette[neuron_model], markersize=m_size)
+   
+    # X axis
+    if x_lim is not None:
+        ax.set_xlim(x_lim)
+
+    ax.set_xlabel('Time (s)')
+    ax.xaxis.set_major_locator(MultipleLocator(1))
+    ax.set_ylabel(f'{neuron_model} Neurons')
+    ax.set_title('Disconnected Network Raster Plot')
+
+   
+    # Input boxes 
+    ax = add_input_boxes(
+        ax = ax,
+        input_interval = input_interval,
+        n_neurons = N_pop,
+        box_height = 3,
+        pad = 5,
+        alpha = 0.3,
+        annotate = True,
+    )
+    ticks = [0, N_pop]
+    ax.set_yticks(ticks)
+    ax.set_ylim(-10, N_pop*1.1)
+    plt.tight_layout()
+    
+
+    return fig
+
+# -------------------- #
+def plotting_single_pop_freq_and_std(sim_duration = None,
+                                     neuron_model = None, 
+                                     pop = None, 
+                                     N_pop = None,
+                                     bin_size = None,
+                                     input_interval = None):
+
+    # Parameters
+    if bin_size == None:
+        bin_size = 0.1  # seconds
+    bin_edges = np.arange(0, sim_duration / b2.second + bin_size, bin_size)
+    time_bins = bin_edges[:-1]
+    
+    # Create spike matrix: (n_neurons, n_time_bins)
+    spike_matrix = np.zeros((N_pop, len(time_bins)))
+    
+    # Fill the spike matrix
+    for i, t in zip(pop.i, pop.t / b2.second):
+        bin_idx = int(t // bin_size)
+        if bin_idx < len(time_bins):
+            spike_matrix[i, bin_idx] += 1
+      
+    # Convert to rate (Hz)
+    spike_matrix /= bin_size
+        
+    # Compute mean and std
+    mean_rate = np.mean(spike_matrix, axis=0)
+    std_rate = np.std(spike_matrix, axis=0)
+    
+    if neuron_model == 'FS':
+        color = color_palette['FS']
+    if neuron_model == 'RS':
+        color = color_palette['RS']
+    
+    fig, ax = plt.subplots(figsize=(10, 6))
+    plt.plot(time_bins, mean_rate, label='avg freq', color = color)
+    
+    plt.fill_between(
+        time_bins,
+        np.clip(mean_rate - std_rate, 0, None),    # to avoid negative firing rate
+        mean_rate + std_rate,
+        color= color, alpha=0.3, label='± std'
+    )
+
+    input_interval_binned = bin_align_intervals(input_interval, bin_size, time_bins)
+   
+    # Input boxes 
+    ax = add_input_boxes(
+        ax = ax,
+        input_interval = input_interval_binned,
+        n_neurons = N_pop,
+        box_height=2,
+        pad=2,
+        alpha=0.3,
+        annotate = True,
+    )
+    
+    plt.xlabel('Time (s)')
+    plt.ylabel(f'Firing rate (Hz, bin={int(bin_size*1000)} ms)')
+    plt.title(f'Network {neuron_model} Population firing rate ± std')
+    plt.legend()
+    ticks = ax.get_yticks()
+    ax.set_yticks(ticks[ticks >= 0])    
+    plt.tight_layout()
+   
     return fig
