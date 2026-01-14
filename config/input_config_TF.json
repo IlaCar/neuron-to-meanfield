@@ -1,0 +1,16 @@
+[
+    {
+        "metainfo": "Input config file -- sim",
+        "connections": {
+            "N_external_exc": 8000,
+            "N_external_inh": 2000,            
+            "conn_prob": 0.05
+        },
+        "rates": {
+            "background_freq": 0.3
+        },
+        "units": {          
+            "background_freq": "Hz"
+        }
+    }
+]
