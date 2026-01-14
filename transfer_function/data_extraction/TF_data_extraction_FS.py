@@ -18,8 +18,6 @@ if not isExist:
 
 # making sure that brian resets everything
 b2.start_scope()
-### TO DELETE ###
-# we can't fix the seed otherwise all the cells get the same input
 # defining a seed
 #b2.seed(12345)
 
