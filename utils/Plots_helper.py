@@ -76,11 +76,11 @@ def plotting_3_traces(neuron_model = None,
         colors = ['#00441b', '#238b45', '#74c476']
     
     fig, ax = plt.subplots(figsize=(10, 6), sharex=True)
-    ax.plot(pop.t/b2.second, pop.v[0] / b2.mV, color='#67000d')
+    ax.plot(pop.t/b2.second, pop.v[0] / b2.mV, color=colors[0])
     ax.plot(pop.t/b2.second, get_pretty_voltage(pop.v[0], -50) / b2.mV, '--', color=colors[0])
-    ax.plot(pop.t/b2.second, pop.v[1] / b2.mV, color='#cb181d')
+    ax.plot(pop.t/b2.second, pop.v[1] / b2.mV, color=colors[0])
     ax.plot(pop.t/b2.second, get_pretty_voltage(pop.v[1], -50) / b2.mV, '--', color=colors[1])
-    ax.plot(pop.t/b2.second, pop.v[2] / b2.mV, color='#fb6a4a')
+    ax.plot(pop.t/b2.second, pop.v[2] / b2.mV, color=colors[0])
     ax.plot(pop.t/b2.second, get_pretty_voltage(pop.v[2], -50) / b2.mV, '--', color=colors[2])
     ax.set_title(f'Selected {neuron_model} traces')
     
