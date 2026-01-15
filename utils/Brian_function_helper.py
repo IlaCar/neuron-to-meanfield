@@ -149,8 +149,7 @@ def extracting_pop_freq_and_std(sim_duration = None,
     mean_rate_RS = np.mean(spike_matrix_RS, axis=0)
     std_rate_RS = np.std(spike_matrix_RS, axis=0)
 
-    # Defining the stimulation interval
-    
+    # Defining the stimulation interval   
     if p_end == sim_duration - p_start:
         left_bound = int((p_start / bin_size).item())
         right_bound = - left_bound + 1
@@ -179,7 +178,8 @@ def extracting_single_pop_freq_and_std(sim_duration = None,
                               p_end = None,
                               pop = None, 
                               N_pop = None,
-                              bin_size = None):
+                              bin_size = None,
+                              delay = None):
 
     # Parameters
     if bin_size == None:
@@ -204,9 +204,12 @@ def extracting_single_pop_freq_and_std(sim_duration = None,
     std_rate = np.std(spike_matrix, axis=0)
 
     # Defining the stimulation interval
-    left_bound = int((p_start / bin_size).item())
+    if delay is not None:
+        left_bound = int(((p_start + delay) / bin_size).item())
+    else:
+        left_bound = int((p_start / bin_size).item())      
     right_bound = left_bound + int(((p_end - p_start) / bin_size).item()) + 1
-    
+
     # Computing the average only over the stimulation
     mean_rate_stim = np.mean(mean_rate[left_bound:right_bound])
 
