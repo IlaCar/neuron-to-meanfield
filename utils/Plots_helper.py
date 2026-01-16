@@ -4,6 +4,7 @@ import os
 
 import matplotlib
 import matplotlib.pyplot as plt
+from matplotlib import cm, colors
 from matplotlib.backends.backend_pdf import PdfPages
 import matplotlib.patches as patches
 from matplotlib.ticker import MultipleLocator
@@ -673,10 +674,10 @@ def plotting_single_pop_freq_and_std(sim_duration = None,
    
     return fig
 
+# -------------------- #
 # The heatmap and annotate_heatmap are taken from:
 # https://matplotlib.org/stable/gallery/images_contours_and_fields/image_annotated_heatmap.html#sphx-glr-gallery-images-contours-and-fields-image-annotated-heatmap-py
 # and modified a bit
-
 def heatmap_vars(data, row_labels, col_labels, ax=None,
             cbar_kw=None, cbarlabel="", plt_title=None,
             x_lab=None, y_lab=None,**kwargs):
@@ -804,3 +805,44 @@ def annotate_heatmap(im, data=None, valfmt="{x:.2f}",
 
     return texts
 
+# -------------------- #
+def heatmap_InOut(exc_vals, inh_vals, data_array, neuron_type):
+    fig = plt.figure(figsize=(10,6))
+    if neuron_type == 'FS':
+        cmap_color = 'Reds'
+    if neuron_type == 'RS':
+        cmap_color = 'Greens'    
+        
+    plt.imshow(data_array, aspect='auto', origin='lower',
+               extent=[exc_vals[0], exc_vals[-1], inh_vals[0], inh_vals[-1]],
+               cmap=cmap_color)
+    
+    plt.colorbar(label='Output frequency (Hz)')
+    plt.xlabel('Freq Excitatory synapses (Hz)')
+    plt.ylabel('Freq Inh Syn (Hz)')
+    plt.title(f'{neuron_type} input–output relation')
+    return fig
+    
+# -------------------- #
+def plot_InOut_relation(exc_vals, inh_vals, data_array, neuron_type):
+    
+    fig = plt.figure(figsize=(10,6))
+    
+    if neuron_type == 'FS':
+        cmap_color = 'autumn_r'
+    if neuron_type == 'RS':
+        cmap_color = 'summer'
+    
+    cmap = cm.get_cmap(cmap_color, len(inh_vals))
+        
+    for i in range(len(inh_vals)):
+        if i % 5 == 0:
+            plt.plot(exc_vals, data_array[i], '-o', color=cmap(i), label=f'{inh_vals[i]}')
+        else:
+            plt.plot(exc_vals, data_array[i], '-o', color=cmap(i))
+
+    plt.xlabel('Freq Excitatory synapses (Hz)')
+    plt.ylabel('Output frequency (Hz)')
+    plt.title(f'{neuron_type} input-output relation')
+    plt.legend(title='Freq Inh Syn (Hz)')
+    return fig
