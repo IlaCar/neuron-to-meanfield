@@ -8,6 +8,7 @@ from matplotlib import cm, colors
 from matplotlib.backends.backend_pdf import PdfPages
 import matplotlib.patches as patches
 from matplotlib.ticker import MultipleLocator
+from mpl_toolkits.mplot3d import Axes3D
 import pandas as pd
 
 import brian2 as b2
@@ -819,7 +820,7 @@ def heatmap_InOut(exc_vals, inh_vals, data_array, neuron_type):
     
     plt.colorbar(label='Output frequency (Hz)')
     plt.xlabel('Freq Excitatory synapses (Hz)')
-    plt.ylabel('Freq Inh Syn (Hz)')
+    plt.ylabel('Freq Inhibitory synapses (Hz)')
     plt.title(f'{neuron_type} input–output relation')
     return fig
     
@@ -834,7 +835,7 @@ def plot_InOut_relation(exc_vals, inh_vals, data_array, neuron_type):
         cmap_color = 'summer'
     
     cmap = cm.get_cmap(cmap_color, len(inh_vals))
-        
+
     for i in range(len(inh_vals)):
         if i % 5 == 0:
             plt.plot(exc_vals, data_array[i], '-o', color=cmap(i), label=f'{inh_vals[i]}')
@@ -845,4 +846,61 @@ def plot_InOut_relation(exc_vals, inh_vals, data_array, neuron_type):
     plt.ylabel('Output frequency (Hz)')
     plt.title(f'{neuron_type} input-output relation')
     plt.legend(title='Freq Inh Syn (Hz)')
+    return fig
+
+# -------------------- #
+def plot_contours(exc_vals, inh_vals, data_array, neuron_type):
+    
+    fig = plt.figure(figsize=(10,6))
+    
+    if neuron_type == 'FS':
+        cmap_color = 'Reds'
+    if neuron_type == 'RS':
+        cmap_color = 'Greens'
+
+    cs = plt.contourf(exc_vals, inh_vals, data_array, levels=20, cmap=cmap_color)
+
+    plt.colorbar(cs, label='Output frequency (Hz)')
+    plt.xlabel('Freq Excitatory synapses (Hz)')
+    plt.ylabel('Freq Inh Syn (Hz)')
+    plt.title(f'{neuron_type} input–output contours')
+
+# -------------------- #
+def plot_gain(exc_vals, inh_vals, data_array, neuron_type):
+    
+    fig = plt.figure(figsize=(10,6))
+        
+    gain = np.gradient(data_array, exc_vals, axis=1)
+    plt.imshow(
+        gain,
+        aspect='auto',
+        origin='lower',
+        extent=[exc_vals[0], exc_vals[-1], inh_vals[0], inh_vals[-1]],
+        cmap='coolwarm'
+    )
+    plt.colorbar(label='Gain (Hz/Hz)')
+    plt.xlabel('Freq Excitatory synapses (Hz)')
+    plt.ylabel('Freq Inh Syn (Hz)')
+    plt.title(f'{neuron_type} gain map')
+    
+    return fig
+
+# -------------------- #
+def mesh_3d(exc_vals, inh_vals, data_array, neuron_type):
+   
+    if neuron_type == 'FS':
+        cmap_color = 'Reds'
+    if neuron_type == 'RS':
+        cmap_color = 'Greens'
+        
+    X, Y = np.meshgrid(exc_vals, inh_vals)
+
+    fig = plt.figure(figsize=(10,6))
+    ax = fig.add_subplot(111, projection='3d')
+    ax.plot_surface(X, Y, data_array, cmap = cmap_color)
+    ax.set_xlabel('Freq Excitatory synapses (Hz)')
+    ax.set_ylabel('Freq Inhibitory synapses (Hz)')   
+    ax.set_zlabel('Output frequency (Hz)')
+    ax.set_title(f'{neuron_type} input–output surface')
+
     return fig
