@@ -822,6 +822,7 @@ def heatmap_InOut(exc_vals, inh_vals, data_array, neuron_type):
     plt.xlabel('Freq Excitatory synapses (Hz)')
     plt.ylabel('Freq Inhibitory synapses (Hz)')
     plt.title(f'{neuron_type} input–output relation')
+    
     return fig
     
 # -------------------- #
@@ -846,6 +847,7 @@ def plot_InOut_relation(exc_vals, inh_vals, data_array, neuron_type):
     plt.ylabel('Output frequency (Hz)')
     plt.title(f'{neuron_type} input-output relation')
     plt.legend(title='Freq Inh Syn (Hz)')
+    
     return fig
 
 # -------------------- #
@@ -864,6 +866,8 @@ def plot_contours(exc_vals, inh_vals, data_array, neuron_type):
     plt.xlabel('Freq Excitatory synapses (Hz)')
     plt.ylabel('Freq Inh Syn (Hz)')
     plt.title(f'{neuron_type} input–output contours')
+    
+    return fig
 
 # -------------------- #
 def plot_gain(exc_vals, inh_vals, data_array, neuron_type):
