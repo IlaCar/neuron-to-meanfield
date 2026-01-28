@@ -4,7 +4,7 @@ import os
 import matplotlib.pyplot as plt
 import brian2 as b2
 
-implemented_neuron_models = ['FS', 'RS']
+implemented_neuron_models = ['FS', 'RS', 'RS_no_adapt']
 
 # Definying the AdEx model #
 AdEx_eqs='''
@@ -45,7 +45,7 @@ def setting_simulation_Brian(idx = None, N_cell = None, neuron_model = None, jso
     if sim_info == True:
         print(f'Imported data: {json_file_name}')
     
-    if neuron_model == 'FS' or neuron_model == 'RS':
+    if neuron_model == 'FS' or neuron_model == 'RS' or neuron_model == 'RS_no_adapt':
         if sim_info == True:
             print(f'neuron model: {neuron_model}')
         V_th_value = data[0][idx]['model']['V_peak_detect']

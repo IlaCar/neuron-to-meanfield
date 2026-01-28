@@ -1,0 +1,53 @@
+[
+    [
+        {
+            "metainfo": "RS model from Depannemaecker et al., 2025",
+            "model": {
+                "C_m": 0.2,
+                "g_L": 0.01,
+                "E_L": -65,
+                "I_e": 0,
+                "a": 0,
+                "b": 0,
+                "tau_w": 500,
+                "V_th": -50,
+                "Delta_T": 2,
+                "V_reset": -65,
+                "V_peak_detect": -40,                
+                "V_peak": 0,
+                "t_ref": 5,
+                "E_e": 0,
+                "Q_e": 1.5,
+                "E_i": -80,
+                "Q_i": 5.0,               
+                "tau_syn": 5
+            },
+            "init": {
+                "v": -65,
+                "w": 0,
+                "g_E": 0,
+                "g_I": 0
+            },
+            "units": {
+                "C_m": "nF",
+                "g_L": "uS",
+                "E_L": "mV",
+                "I_e": "nA",
+                "a": "nS",
+                "b": "nA",
+                "tau_w": "ms",
+                "V_th": "mV",
+                "Delta_T": "mV",
+                "V_reset": "mV",
+                "V_peak_detect": "mV",                                
+                "V_peak": "mV",
+                "t_ref": "ms",
+                "E_e": "mV",
+                "Q_e": "nS",
+                "E_i": "mV",
+                "Q_i": "nS",
+                "tau_syn": "ms"
+            }
+        }
+    ]
+]
