@@ -83,7 +83,8 @@ def plotting_3_traces(neuron_model = None,
         colors = ['#67000d', '#cb181d', '#fb6a4a']
     if neuron_model == 'RS':
         colors = ['#00441b', '#238b45', '#74c476']
-    
+    if neuron_model == 'RS_no_adapt':    
+        colors = ['#08306b', '#2171b5', '#6baed6']    
     fig, ax = plt.subplots(figsize=(10, 6), sharex=True)
     ax.plot(pop.t/b2.second, pop.v[0] / b2.mV, color=colors[0])
     ax.plot(pop.t/b2.second, get_pretty_voltage(pop.v[0], -50) / b2.mV, '--', color=colors[0])
@@ -647,7 +648,9 @@ def plotting_single_pop_freq_and_std(sim_duration = None,
         color = color_palette['FS']
     if neuron_model == 'RS':
         color = color_palette['RS']
-    
+    if neuron_model == 'RS_no_adapt':
+        color = color_palette['RS_no_adapt']
+        
     fig, ax = plt.subplots(figsize=(10, 6))
     plt.plot(time_bins, mean_rate, label='avg freq', color = color)
     
