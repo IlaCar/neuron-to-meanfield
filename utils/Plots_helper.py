@@ -32,23 +32,28 @@ def plotting_3_traces_per_population(pop1 = None,
                                      ext_input_1 = None,
                                      ext_input_2 = None,
                                      ext_input_3 = None,
-                                     ext_input_4 = None):
+                                     ext_input_4 = None,
+                                     pretty_plot = False):
 
     fig, ax = plt.subplots(3, 1, figsize=(10, 10), sharex=True)
-    ax[0].plot(pop1.t/b2.second, pop1.v[0] / b2.mV, color='#67000d')
-    ax[0].plot(pop1.t/b2.second, get_pretty_voltage(pop1.v[0], -50) / b2.mV, '--', color='#67000d')
-    ax[0].plot(pop1.t/b2.second, pop1.v[1] / b2.mV, color='#cb181d')
-    ax[0].plot(pop1.t/b2.second, get_pretty_voltage(pop1.v[1], -50) / b2.mV, '--', color='#cb181d')
-    ax[0].plot(pop1.t/b2.second, pop1.v[2] / b2.mV, color='#fb6a4a')
-    ax[0].plot(pop1.t/b2.second, get_pretty_voltage(pop1.v[2], -50) / b2.mV, '--', color='#fb6a4a')
+    if pretty_plot == False:
+        ax[0].plot(pop1.t/b2.second, pop1.v[0] / b2.mV, color='#67000d')
+        ax[0].plot(pop1.t/b2.second, pop1.v[1] / b2.mV, color='#cb181d')
+        ax[0].plot(pop1.t/b2.second, pop1.v[2] / b2.mV, color='#fb6a4a')
+    else:
+        ax[0].plot(pop1.t/b2.second, get_pretty_voltage(pop1.v[0], -50) / b2.mV, '--', color='#67000d')
+        ax[0].plot(pop1.t/b2.second, get_pretty_voltage(pop1.v[1], -50) / b2.mV, '--', color='#cb181d')
+        ax[0].plot(pop1.t/b2.second, get_pretty_voltage(pop1.v[2], -50) / b2.mV, '--', color='#fb6a4a')  
     ax[0].set_title('Selected FS traces')
     
-    ax[1].plot(pop2.t/b2.second, pop2.v[0] / b2.mV, color='#00441b')
-    ax[1].plot(pop2.t/b2.second, get_pretty_voltage(pop2.v[0], -50) / b2.mV, '--', color='#00441b')   
-    ax[1].plot(pop2.t/b2.second, pop2.v[1] / b2.mV, color='#238b45')
-    ax[1].plot(pop2.t/b2.second, get_pretty_voltage(pop2.v[1], -50) / b2.mV, '--', color='#238b45')
-    ax[1].plot(pop2.t/b2.second, pop2.v[2] / b2.mV, color='#74c476')
-    ax[1].plot(pop2.t/b2.second, get_pretty_voltage(pop2.v[2], -50) / b2.mV, '--', color='#74c476')
+    if pretty_plot == False:    
+        ax[1].plot(pop2.t/b2.second, pop2.v[0] / b2.mV, color='#00441b')
+        ax[1].plot(pop2.t/b2.second, pop2.v[1] / b2.mV, color='#238b45')
+        ax[1].plot(pop2.t/b2.second, pop2.v[2] / b2.mV, color='#74c476')
+    else:
+        ax[1].plot(pop2.t/b2.second, get_pretty_voltage(pop2.v[0], -50) / b2.mV, '--', color='#00441b')   
+        ax[1].plot(pop2.t/b2.second, get_pretty_voltage(pop2.v[1], -50) / b2.mV, '--', color='#238b45')
+        ax[1].plot(pop2.t/b2.second, get_pretty_voltage(pop2.v[2], -50) / b2.mV, '--', color='#74c476')
     
     ax[1].set_title('Selected RS traces')
 
