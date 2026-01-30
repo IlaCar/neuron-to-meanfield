@@ -16,6 +16,7 @@ import brian2 as b2
 # -------------------- #
 color_palette = {"FS": '#cb181d',
                  "RS": '#238b45',
+                 "RS_no_adapt": '#2171b5',
                  "input": '#9ecae1'}
 
 # -------------------- #                 
