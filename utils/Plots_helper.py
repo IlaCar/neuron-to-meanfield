@@ -823,6 +823,8 @@ def heatmap_InOut(exc_vals, inh_vals, data_array, neuron_type):
         cmap_color = 'Reds'
     if neuron_type == 'RS':
         cmap_color = 'Greens'    
+    if neuron_type == 'RS_no_adapt':
+        cmap_color = 'Blues'  
         
     plt.imshow(data_array, aspect='auto', origin='lower',
                extent=[exc_vals[0], exc_vals[-1], inh_vals[0], inh_vals[-1]],
@@ -844,7 +846,8 @@ def plot_InOut_relation(exc_vals, inh_vals, data_array, neuron_type):
         cmap_color = 'autumn_r'
     if neuron_type == 'RS':
         cmap_color = 'summer'
-    
+    if neuron_type == 'RS_no_adapt':
+        cmap_color = 'winter_r'    
     cmap = cm.get_cmap(cmap_color, len(inh_vals))
 
     for i in range(len(inh_vals)):
@@ -869,7 +872,9 @@ def plot_contours(exc_vals, inh_vals, data_array, neuron_type):
         cmap_color = 'Reds'
     if neuron_type == 'RS':
         cmap_color = 'Greens'
-
+    if neuron_type == 'RS_no_adapt':
+        cmap_color = 'Blues' 
+    
     cs = plt.contourf(exc_vals, inh_vals, data_array, levels=20, cmap=cmap_color)
 
     plt.colorbar(cs, label='Output frequency (Hz)')
@@ -906,6 +911,8 @@ def mesh_3d(exc_vals, inh_vals, data_array, neuron_type):
         cmap_color = 'Reds'
     if neuron_type == 'RS':
         cmap_color = 'Greens'
+    if neuron_type == 'RS_no_adapt':
+        cmap_color = 'Blues' 
         
     X, Y = np.meshgrid(exc_vals, inh_vals)
 
@@ -930,7 +937,7 @@ def plot_TF_fitting(neuron_model, df_data, mean_error):
     inp_exc = df_data['input_exc'].to_numpy()
     out_rate = df_data['avg_f_out'].to_numpy()
     fit_rate = df_data['fit_rate']
-    ax.plot(inp_exc, out_rate, 'o', color= color_palette['RS'], label=f'{neuron_model} data')
+    ax.plot(inp_exc, out_rate, 'o', color= color_palette[neuron_model], label=f'{neuron_model} data')
     ax.plot(inp_exc, fit_rate, 'k+', markersize=7, label='fit')
     
     ax.text(0.5, 0.95, f'mean error: {mean_error:.2f} Hz', transform=ax.transAxes, ha='center')
