@@ -973,7 +973,8 @@ def plot_TF_fitting_viridis(neuron_model, df_data, mean_error, unique_inh, color
 def plots_TF_fitting(neuron_model, df_data, poly_params_2, params_SI, alpha, unique_inh, colors, y_lim = None):
     
     from utils.TF_helper import res_2_func
-    
+    distr_mean_error = np.zeros(len(unique_inh))
+    idx = 0
     for fixed_inh, c in zip(unique_inh, colors):
         fig, ax = plt.subplots()
         ax.set_title('Transfer function of RS cell')
@@ -990,6 +991,9 @@ def plots_TF_fitting(neuron_model, df_data, poly_params_2, params_SI, alpha, uni
         
         fit_rate = df_data.loc[mask,'fit_rate']
         mean_error = res_2_func(poly_params_2, data=df_data.loc[mask], params=params_SI, alpha=alpha)
+
+        distr_mean_error[idx] = mean_error
+        idx += 1
         
         ax.plot(inp_exc, out_rate, 'o', color = c, label=f'data (inh={fixed_inh} Hz)')
         ax.plot(inp_exc, fit_rate, 'k+', markersize=7, label='fit')
@@ -998,9 +1002,20 @@ def plots_TF_fitting(neuron_model, df_data, poly_params_2, params_SI, alpha, uni
         ax.legend(loc = 'lower right')
         ax.set_ylim(y_lim if y_lim else (-5, 100))
             
-    return 
+    return fig, distr_mean_error
 
+# -------------------- #
+def plots_TF_distr_mean_error(neuron_model, inh_vals, mean_error):
 
+    fig = plt.figure(figsize=(7,6))
+    plt.plot(inh_vals, mean_error, '.-', color = color_palette[neuron_model])
+    plt.xlabel('Inhibitory input (Hz)')
+    plt.ylabel('Mean error (Hz)')
+    plt.title(f'{neuron_model} mean error distribution')
+    plt.grid()
+    
+    return fig 
+    
 # -------------------- #
 def make_TF_gif(neuron_model, df_data, poly_params_2, params_SI, alpha, unique_inh, colors, gif_name, y_lim=None):
 
