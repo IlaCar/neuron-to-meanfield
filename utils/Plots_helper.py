@@ -73,6 +73,7 @@ def plotting_3_traces_per_population(pop1 = None,
     ax[1].set_ylabel('Membrane potential (mV)')
     
     plt.tight_layout()
+    
     return fig
 
 # -------------------- #
@@ -99,6 +100,7 @@ def plotting_3_traces(neuron_model = None,
     ax.set_ylabel('Membrane potential (mV)')
     
     plt.tight_layout()
+    
     return fig
 
 # -------------------- #
@@ -281,7 +283,7 @@ def network_raster_plot(pop1=None,
         alpha=0.3,
         annotate=True,
     )
-
+    
     return fig
 
 # -------------------- #
@@ -402,7 +404,7 @@ def plotting_pop_freq_and_std(sim_duration = None,
     ax.set_yticks(ticks[ticks >= 0])
     plt.legend()
     plt.tight_layout()
-   
+    
     return fig
 
 # -------------------- #
@@ -481,7 +483,7 @@ def network_raster_plot_h5(pop1 = None,
         alpha=0.3,
         annotate=True,
     )
-
+    
     return fig
 
 # -------------------- #
@@ -571,6 +573,7 @@ def plotting_pop_freq_and_std_h5(sim_duration = None,
     ax.set_yticks(ticks[ticks >= 0])
     plt.legend()
     plt.tight_layout()
+    
     return fig
 
 # -------------------- #
@@ -611,7 +614,6 @@ def disconnected_network_raster_plot_TF(neuron_model=None,
     ax.set_yticks(ticks)
     ax.set_ylim(-10, N_pop*1.1)
     plt.tight_layout()
-    
 
     return fig
 
@@ -682,7 +684,7 @@ def plotting_single_pop_freq_and_std(sim_duration = None,
     ticks = ax.get_yticks()
     ax.set_yticks(ticks[ticks >= 0])    
     plt.tight_layout()
-   
+    
     return fig
 
 # -------------------- #
@@ -838,7 +840,7 @@ def heatmap_InOut(exc_vals, inh_vals, data_array, neuron_type):
     return fig
     
 # -------------------- #
-def plot_InOut_relation(exc_vals, inh_vals, data_array, neuron_type):
+def plot_InOut_relation(exc_vals, inh_vals, data_array, std_data_array, neuron_type):
     
     fig = plt.figure(figsize=(10,6))
     
@@ -855,7 +857,7 @@ def plot_InOut_relation(exc_vals, inh_vals, data_array, neuron_type):
             plt.plot(exc_vals, data_array[i], '-o', color=cmap(i), label=f'{inh_vals[i]}')
         else:
             plt.plot(exc_vals, data_array[i], '-o', color=cmap(i))
-
+        plt.errorbar(exc_vals, data_array[i], std_data_array[i], fmt='-o', color = cmap(i), alpha=0.5)
     plt.xlabel('Freq Excitatory synapses (Hz)')
     plt.ylabel('Output frequency (Hz)')
     plt.title(f'{neuron_type} input-output relation')
@@ -923,13 +925,13 @@ def mesh_3d(exc_vals, inh_vals, data_array, neuron_type):
     ax.set_ylabel('Freq Inhibitory synapses (Hz)')   
     ax.set_zlabel('Output frequency (Hz)')
     ax.set_title(f'{neuron_type} input–output surface')
-
+    
     return fig
 
 # -------------------- #
 def plot_TF_fitting(neuron_model, df_data, mean_error):
     fig, ax = plt.subplots(figsize=(8,5))
-    ax.set_title('Transfer function of RS cell')
+    ax.set_title(f'Transfer function of {neuron_model} cell')
     ax.set_ylabel('Output rate (Hz)')
     ax.set_xlabel('Excitatory input (Hz)')
     
@@ -938,17 +940,17 @@ def plot_TF_fitting(neuron_model, df_data, mean_error):
     out_rate = df_data['avg_f_out'].to_numpy()
     fit_rate = df_data['fit_rate']
     ax.plot(inp_exc, out_rate, 'o', color= color_palette[neuron_model], label=f'{neuron_model} data')
-    ax.plot(inp_exc, fit_rate, 'k+', markersize=7, label='fit')
+    ax.plot(inp_exc, fit_rate, 'kx', markersize=7, label='fit')
     
     ax.text(0.5, 0.95, f'mean error: {mean_error:.2f} Hz', transform=ax.transAxes, ha='center')
     ax.legend()
-
+    
     return fig
 
 # -------------------- #
 def plot_TF_fitting_viridis(neuron_model, df_data, mean_error, unique_inh, colors):
     fig, ax = plt.subplots(figsize=(10,5))
-    ax.set_title('Transfer function of RS cell')
+    ax.set_title(f'Transfer function of {neuron_model} cell')
     ax.set_ylabel('Output rate (Hz)')
     ax.set_xlabel('Excitatory input (Hz)')
     
@@ -960,29 +962,28 @@ def plot_TF_fitting_viridis(neuron_model, df_data, mean_error, unique_inh, color
         fit_rate = df_data.loc[mask, 'fit_rate']
     
         ax.plot(inp_exc, out_rate, 'o', color=c, alpha=0.5)
-        ax.plot(inp_exc, fit_rate, '+', color=c, markersize=7)
+        ax.plot(inp_exc, fit_rate, 'x', color=c, markersize=7)
     ax.text(0.5, 0.95, f'mean error: {mean_error:.2f} Hz', transform=ax.transAxes, ha='center')    
     # colorbar
     sm = plt.cm.ScalarMappable(cmap='viridis', norm=plt.Normalize(vmin=unique_inh.min(), vmax=unique_inh.max()))
     cbar = plt.colorbar(sm, ax=ax, alpha = 0.5)
     cbar.set_label('Inhibitory input (Hz)')
-
+    
     return fig
 
 # -------------------- #
-def plots_TF_fitting(neuron_model, df_data, poly_params_2, params_SI, alpha, unique_inh, colors, y_lim = None):
+def plots_TF_fitting(neuron_model, df_data, std_data, poly_params_2, params_SI, alpha, unique_inh, colors, y_lim = None):
     
     from utils.TF_helper import res_2_func
     distr_mean_error = np.zeros(len(unique_inh))
     idx = 0
     for fixed_inh, c in zip(unique_inh, colors):
         fig, ax = plt.subplots()
-        ax.set_title('Transfer function of RS cell')
+        ax.set_title(f'Transfer function of {neuron_model} cell')
         ax.set_ylabel('Output rate (Hz)')
         ax.set_xlabel('Excitatory input (Hz)')
     
         # Select a fixed inhibitory input
-        #fixed_inh = 10  # Hz
         tol = 1e-6  # tolerance in case of floating point noise
         mask = np.isclose(df_data['input_inh'], fixed_inh, atol=tol)
         
@@ -993,15 +994,16 @@ def plots_TF_fitting(neuron_model, df_data, poly_params_2, params_SI, alpha, uni
         mean_error = res_2_func(poly_params_2, data=df_data.loc[mask], params=params_SI, alpha=alpha)
 
         distr_mean_error[idx] = mean_error
-        idx += 1
-        
+
+        plt.errorbar(inp_exc, out_rate, std_data[idx], linestyle='None', color = c)
         ax.plot(inp_exc, out_rate, 'o', color = c, label=f'data (inh={fixed_inh} Hz)')
-        ax.plot(inp_exc, fit_rate, 'k+', markersize=7, label='fit')
+        ax.plot(inp_exc, fit_rate, 'kx', markersize=7, label='fit')
         
         ax.text(0.2, 0.95, f'mean error: {mean_error:.2f} Hz', transform=ax.transAxes, ha='center')
         ax.legend(loc = 'lower right')
         ax.set_ylim(y_lim if y_lim else (-5, 100))
-            
+
+        idx += 1
     return fig, distr_mean_error
 
 # -------------------- #
@@ -1013,21 +1015,21 @@ def plots_TF_distr_mean_error(neuron_model, inh_vals, mean_error):
     plt.ylabel('Mean error (Hz)')
     plt.title(f'{neuron_model} mean error distribution')
     plt.grid()
-    
     return fig 
     
 # -------------------- #
-def make_TF_gif(neuron_model, df_data, poly_params_2, params_SI, alpha, unique_inh, colors, gif_name, y_lim=None):
+def make_TF_gif(neuron_model, df_data, std_data, poly_params_2, params_SI, alpha, unique_inh, colors, gif_name, y_lim=None):
 
     import imageio.v2 as imageio
     from utils.TF_helper import res_2_func
 
     frames = []
 
+    idx = 0
     for fixed_inh, c in zip(unique_inh, colors):
         fig, ax = plt.subplots()
 
-        ax.set_title('Transfer function of RS cell')
+        ax.set_title(f'Transfer function of {neuron_model} cell')
         ax.set_ylabel('Output rate (Hz)')
         ax.set_xlabel('Excitatory input (Hz)')
 
@@ -1043,15 +1045,17 @@ def make_TF_gif(neuron_model, df_data, poly_params_2, params_SI, alpha, unique_i
                                 params=params_SI,
                                 alpha=alpha)
 
+        plt.errorbar(inp_exc, out_rate, std_data[idx], linestyle='None', color = c)
         ax.plot(inp_exc, out_rate, 'o', color=c, label=f'data (inh={fixed_inh} Hz)')
-        ax.plot(inp_exc, fit_rate, 'k+', markersize=7, label='fit')
+        ax.plot(inp_exc, fit_rate, 'kx', markersize=7, label='fit')
 
         ax.text(0.2, 0.95, f'mean error: {mean_error:.2f} Hz',
                 transform=ax.transAxes, ha='center')
 
         ax.legend(loc='lower right')
         ax.set_ylim(y_lim if y_lim else (-5, 100))
-
+        idx += 1
+        
         # --- convert fig to image ---
         fig.canvas.draw()
         image = np.frombuffer(fig.canvas.tostring_rgb(), dtype='uint8')
@@ -1059,7 +1063,7 @@ def make_TF_gif(neuron_model, df_data, poly_params_2, params_SI, alpha, unique_i
         frames.append(image)
 
         plt.close(fig)  # to clean memory
-
+        
     # --- write GIF ---
     gif = imageio.mimsave(gif_name, frames, fps=2.5, loop=0, palettesize=256)
 
@@ -1091,6 +1095,7 @@ def plot_residuals_TF_fitting(neuron_model, df_data):
     ax.invert_yaxis()
     
     plt.tight_layout()
+    
     return fig
     
 # -------------------- #
@@ -1116,28 +1121,6 @@ def plot_abs_residuals_TF_fitting(neuron_model, df_data):
     ax.invert_yaxis()
     
     plt.tight_layout()
+    
     return fig
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
