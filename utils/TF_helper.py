@@ -374,3 +374,25 @@ def TF_template_sim(neuron_model = None,
 
     return max(F_out_th, 0.0)
     #return max(F_out_th, 0.0), mu_v # when adaptation !=0, work in progress
+
+# -------------------- #
+def get_mean_error_distribution(neuron_model, df_data, poly_params_2, params_SI, alpha, unique_inh):
+    
+    distr_mean_error = np.zeros(len(unique_inh))
+    idx = 0
+    for fixed_inh in unique_inh:
+
+        # Select a fixed inhibitory input
+        tol = 1e-6  # tolerance in case of floating point noise
+        mask = np.isclose(df_data['input_inh'], fixed_inh, atol=tol)
+        
+        inp_exc = df_data.loc[mask, 'input_exc'].to_numpy()
+        out_rate = df_data.loc[mask, 'avg_f_out'].to_numpy()
+        
+        fit_rate = df_data.loc[mask,'fit_rate']
+        mean_error = res_2_func(poly_params_2, data=df_data.loc[mask], params=params_SI, alpha=alpha)
+
+        distr_mean_error[idx] = mean_error
+        idx += 1
+                    
+    return distr_mean_error
