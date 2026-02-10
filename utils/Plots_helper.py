@@ -1007,14 +1007,30 @@ def plots_TF_fitting(neuron_model, df_data, std_data, poly_params_2, params_SI, 
     return fig, distr_mean_error
 
 # -------------------- #
-def plots_TF_distr_mean_error(neuron_model, inh_vals, mean_error):
+def plots_TF_distr_mean_error(neuron_model, inh_vals, mean_error,
+                              alpha = None, alpha_idx = None, fig = None):
 
-    fig = plt.figure(figsize=(7,6))
-    plt.plot(inh_vals, mean_error, '.-', color = color_palette[neuron_model])
+    if fig == None:
+        fig = plt.figure(figsize=(7,6))
+    if alpha == None:
+        fig = plt.figure(figsize=(7,6))
+        plt.plot(inh_vals, mean_error, '.-', color = color_palette[neuron_model])
+
+    else:
+        if neuron_model == 'FS':
+            cmap = plt.cm.get_cmap('Reds_r', 15)
+        if neuron_model == 'RS':
+            cmap = plt.cm.get_cmap('Greens_r', 15)   
+        if neuron_model == 'RS_no_adapt':
+            cmap = plt.cm.get_cmap('Blues_r', 15) 
+       
+        #fig = plt.figure('Mean error as function of alphas', figsize=(7,6))
+        plt.plot(inh_vals, mean_error, '.-', color = cmap(alpha_idx), label=f'alpha = {alpha}')
+        plt.legend(reverse=True)
+
+    plt.title(f'{neuron_model} mean error distribution')
     plt.xlabel('Inhibitory input (Hz)')
     plt.ylabel('Mean error (Hz)')
-    plt.title(f'{neuron_model} mean error distribution')
-    plt.grid()
     return fig 
     
 # -------------------- #
