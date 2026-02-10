@@ -376,7 +376,7 @@ def TF_template_sim(neuron_model = None,
     #return max(F_out_th, 0.0), mu_v # when adaptation !=0, work in progress
 
 # -------------------- #
-def get_mean_error_distribution(neuron_model, df_data, poly_params_2, params_SI, alpha, unique_inh):
+def get_mean_error_distribution(neuron_model, df_data, poly_params_2, params_SI, alpha, unique_inh, alpha_idx = None):
     
     distr_mean_error = np.zeros(len(unique_inh))
     idx = 0
@@ -388,8 +388,11 @@ def get_mean_error_distribution(neuron_model, df_data, poly_params_2, params_SI,
         
         inp_exc = df_data.loc[mask, 'input_exc'].to_numpy()
         out_rate = df_data.loc[mask, 'avg_f_out'].to_numpy()
-        
-        fit_rate = df_data.loc[mask,'fit_rate']
+
+        if alpha_idx == None:
+            fit_rate = df_data.loc[mask,'fit_rate']
+        else:
+            fit_rate = df_data.loc[mask,f'fit_rate_alpha_{alpha_idx}']
         mean_error = res_2_func(poly_params_2, data=df_data.loc[mask], params=params_SI, alpha=alpha)
 
         distr_mean_error[idx] = mean_error
