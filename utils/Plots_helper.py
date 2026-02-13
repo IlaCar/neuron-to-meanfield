@@ -1196,15 +1196,23 @@ def plot_poly_correlation_error(neuron_model, corrs, params_name):
     plt.xticks(range(0, len(params_name)), params_name, rotation=45, ha='right')
     plt.xlabel("Polynomial parameters")
     plt.ylabel("Correlation with mean_error")
-    plt.title("Polynomial parameters correlation with mean_error \n {neuron_model}")
+    plt.title(f"Polynomial parameters correlation with mean_error \n {neuron_model}")
     plt.tight_layout()
 
     return fig
 
+# -------------------- #
+def plot_corr_matrix(neuron_model, corr_matrix, params_name):
 
+    fig = plt.figure(figsize=(7,5))
+    plt.imshow(corr_matrix, vmin=-1, vmax=1)
+    plt.colorbar(label="Correlation")
+    plt.xticks(range(0, len(params_name)), params_name, rotation=45, ha='right')
+    plt.yticks(range(0, len(params_name)), params_name, rotation=45, ha='right')
+    plt.title(f"Correlation between polynomial parameters \n {neuron_model} transfer function")
+    plt.tight_layout()
 
-
-
+    return fig
 
 
 
