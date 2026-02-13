@@ -1171,3 +1171,53 @@ def plot_violin(neuron_model, poly_z, params_name):
     plt.tight_layout()
 
     return fig
+
+# -------------------- #
+def plot_poly_zscore_heatmap(neuron_model, poly_z, params_name):
+    
+    fig = plt.figure(figsize=(7,5))
+    plt.imshow(poly_z, aspect='auto', cmap='coolwarm', vmin=-3, vmax=3)
+    plt.colorbar(label="Z-score")
+    plt.xticks(range(0, len(params_name)), params_name, rotation=45, ha='right')
+    plt.xlabel("Polynomial Coefficients")
+    plt.ylabel("Model #")
+    plt.title(f"Normalized polynomial parameters \n {neuron_model} transfer function")
+    plt.tight_layout()
+
+    return fig
+
+# -------------------- #
+def plot_poly_correlation_error(neuron_model, corrs, params_name):
+
+
+    fig = plt.figure(figsize=(7,5))
+    plt.bar(range(len(corrs)), corrs, color = color_palette[neuron_model], alpha = 0.3, edgecolor = 'k')
+    plt.axhline(0, linestyle="--", color="gray", alpha = 0.2)
+    plt.xticks(range(0, len(params_name)), params_name, rotation=45, ha='right')
+    plt.xlabel("Polynomial parameters")
+    plt.ylabel("Correlation with mean_error")
+    plt.title("Polynomial parameters correlation with mean_error \n {neuron_model}")
+    plt.tight_layout()
+
+    return fig
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
