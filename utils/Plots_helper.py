@@ -1164,6 +1164,7 @@ def plot_violin(neuron_model, poly_z, params_name):
             parts[key].set_linewidth(1)    
     
     plt.axhline(0, linestyle="-", color="gray", alpha = 0.2)
+    plt.ylim(-3,3)
     plt.xticks(range(1, len(params_name) + 1), params_name, rotation=45, ha='right')
     plt.xlabel("Polynomial parameters")
     plt.ylabel("Z-score")
@@ -1192,7 +1193,7 @@ def plot_poly_correlation_error(neuron_model, corrs, params_name):
 
     fig = plt.figure(figsize=(7,5))
     plt.bar(range(len(corrs)), corrs, color = color_palette[neuron_model], alpha = 0.3, edgecolor = 'k')
-    plt.axhline(0, linestyle="--", color="gray", alpha = 0.2)
+    plt.axhline(0, linestyle="--", color="gray", alpha = 0.5)
     plt.xticks(range(0, len(params_name)), params_name, rotation=45, ha='right')
     plt.xlabel("Polynomial parameters")
     plt.ylabel("Correlation with mean_error")
@@ -1248,9 +1249,38 @@ def plot_pca_parameter_contributions(neuron_model, pc1, pc2):
 
     return fig
 
+# -------------------- #
+def plot_pca_biplot(neuron_model, params_name, X_pca, loadings, expl_var):
+    fig, ax = plt.subplots(figsize=(7,7))
+    
+    ax.scatter(X_pca[:,0], X_pca[:,1],
+               color=color_palette[neuron_model], alpha=0.7)
+    
+    # Arrows
+    scale = 1
+    for i in range(len(loadings)):
+        ax.arrow(0, 0,
+                 loadings[0,i]*scale,
+                 loadings[1,i]*scale,
+                 head_width=0.03,
+                 color=color_palette[neuron_model],
+                 alpha=0.7)
+        ax.text(loadings[0,i]*scale,
+                loadings[1,i]*scale,
+                params_name[i])
+    
+    ax.set_xlabel(f"PC1 ({expl_var[0]*100:.1f}%)",
+                  color='#f1a340', weight='bold')
+    ax.set_ylabel(f"PC2 ({expl_var[1]*100:.1f}%)",
+                  color='#998ec3', weight='bold')
+    
+    ax.set_aspect('equal', adjustable='box')
+    
+    ax.grid()
+    ax.set_title(f"PCA biplot: \n {neuron_model} poly coefficients")
+    plt.tight_layout()
 
-
-
+    return fig
 
 
 
