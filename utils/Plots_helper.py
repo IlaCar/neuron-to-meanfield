@@ -1214,9 +1214,19 @@ def plot_corr_matrix(neuron_model, corr_matrix, params_name):
 
     return fig
 
+# -------------------- #
+def plot_scree(neuron_model, expl_var):
 
+    fig = plt.figure(figsize=(7,5))
+    plt.plot(range(1, len(expl_var)+1), expl_var, '.-', color = color_palette[neuron_model], alpha = 0.5)
+    plt.xlabel("Principal component")
+    plt.ylabel("Explained variance ratio")
+    plt.title("Scree plot")
+    plt.xticks(range(1,11))
+    plt.ylim(-0.05, 1.05)
+    plt.tight_layout()
 
-
+    return fig
 
 
 
