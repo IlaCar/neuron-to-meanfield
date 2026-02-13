@@ -1140,3 +1140,34 @@ def plot_abs_residuals_TF_fitting(neuron_model, df_data):
     
     return fig
 
+# -------------------- #
+def plot_violin(neuron_model, poly_z, params_name):
+    fig = plt.figure(figsize=(10,5))
+    
+    parts = plt.violinplot(poly_z,showmeans=True)
+
+    color = color_palette[neuron_model]
+
+    # The following code is used "to appy the color to the violins":
+    for pc in parts['bodies']:
+        pc.set_facecolor(color)
+        pc.set_edgecolor('black')
+        pc.set_alpha(0.2)
+    if 'cmeans' in parts:
+        parts['cmeans'].set_color('black')
+        parts['cmeans'].set_linewidth(2)
+        parts['cmeans'].set_alpha(0.4)
+    for key in ['cbars', 'cmins', 'cmaxes']:
+        if key in parts:
+            parts[key].set_color('black')
+            parts[key].set_alpha(0.4)
+            parts[key].set_linewidth(1)    
+    
+    plt.axhline(0, linestyle="-", color="gray", alpha = 0.2)
+    plt.xticks(range(1, len(params_name) + 1), params_name, rotation=45, ha='right')
+    plt.xlabel("Polynomial parameters")
+    plt.ylabel("Z-score")
+    plt.title(f"Normalized variability of polynomial parameters for {neuron_model} transfer function")
+    plt.tight_layout()
+
+    return fig
