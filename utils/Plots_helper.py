@@ -1228,10 +1228,25 @@ def plot_scree(neuron_model, expl_var):
 
     return fig
 
+# -------------------- #
+def plot_pca_parameter_contributions(neuron_model, pc1, pc2):
+    
+    x = np.arange(len(pc1))
+    width = 0.38
+    
+    fig = plt.figure(figsize=(7,5))
+    
+    plt.bar(x - width/2, pc1, width, label='PC1', color='#f1a340', edgecolor = 'k')
+    plt.bar(x + width/2, pc2, width, label='PC2', color='#998ec3', edgecolor = 'k')
+    
+    plt.xticks(x, pc1.index, rotation=45)
+    plt.ylabel("Loading weight")
+    plt.title(f"Principal component {neuron_model} parameter contributions")
+    plt.axhline(0, color='black', linewidth=0.8)
+    plt.legend()
+    plt.tight_layout()
 
-
-
-
+    return fig
 
 
 
