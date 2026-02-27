@@ -35,7 +35,8 @@ def plotting_3_traces_per_population(pop1 = None,
                                      ext_input_2 = None,
                                      ext_input_3 = None,
                                      ext_input_4 = None,
-                                     pretty_plot = False):
+                                     pretty_plot = False,
+                                     RS_adaptation = True):
 
     fig, ax = plt.subplots(3, 1, figsize=(10, 10), sharex=True)
     if pretty_plot == False:
@@ -47,24 +48,36 @@ def plotting_3_traces_per_population(pop1 = None,
         ax[0].plot(pop1.t/b2.second, get_pretty_voltage(pop1.v[1], -50) / b2.mV, '--', color='#cb181d')
         ax[0].plot(pop1.t/b2.second, get_pretty_voltage(pop1.v[2], -50) / b2.mV, '--', color='#fb6a4a')  
     ax[0].set_title('Selected FS traces')
-    
-    if pretty_plot == False:    
-        ax[1].plot(pop2.t/b2.second, pop2.v[0] / b2.mV, color='#00441b')
-        ax[1].plot(pop2.t/b2.second, pop2.v[1] / b2.mV, color='#238b45')
-        ax[1].plot(pop2.t/b2.second, pop2.v[2] / b2.mV, color='#74c476')
+
+    if RS_adaptation == True:
+        color_RS = color_palette['RS']
+        col_0 = '#00441b'
+        col_1 = '#238b45'
+        col_2 = '#74c476'
     else:
-        ax[1].plot(pop2.t/b2.second, get_pretty_voltage(pop2.v[0], -50) / b2.mV, '--', color='#00441b')   
-        ax[1].plot(pop2.t/b2.second, get_pretty_voltage(pop2.v[1], -50) / b2.mV, '--', color='#238b45')
-        ax[1].plot(pop2.t/b2.second, get_pretty_voltage(pop2.v[2], -50) / b2.mV, '--', color='#74c476')
+        color_RS = color_palette['RS_no_adapt']
+        col_0 = '#08306b'
+        col_1 = '#2171b5'
+        col_2 = '#6baed6'
+    
+
+    if pretty_plot == False:    
+        ax[1].plot(pop2.t/b2.second, pop2.v[0] / b2.mV, color=col_0)
+        ax[1].plot(pop2.t/b2.second, pop2.v[1] / b2.mV, color=col_1)
+        ax[1].plot(pop2.t/b2.second, pop2.v[2] / b2.mV, color=col_2)
+    else:
+        ax[1].plot(pop2.t/b2.second, get_pretty_voltage(pop2.v[0], -50) / b2.mV, '--', color=col_0)   
+        ax[1].plot(pop2.t/b2.second, get_pretty_voltage(pop2.v[1], -50) / b2.mV, '--', color=col_1)
+        ax[1].plot(pop2.t/b2.second, get_pretty_voltage(pop2.v[2], -50) / b2.mV, '--', color=col_2)
     
     ax[1].set_title('Selected RS traces')
-
+   
     if ext_input_0 != None:
         ax[-1].plot(ext_input_0.t / b2.second, ext_input_0.i, '.', color='k', alpha=0.3, markersize=1)
     ax[-1].plot(ext_input_1.t / b2.second, ext_input_1.i, '.', color=color_palette['FS'], markersize=1)
-    ax[-1].plot(ext_input_2.t / b2.second, ext_input_2.i, '.', color=color_palette['RS'], markersize=1)
+    ax[-1].plot(ext_input_2.t / b2.second, ext_input_2.i, '.', color=color_RS, markersize=1)
     ax[-1].plot(ext_input_3.t / b2.second, ext_input_3.i, '.', color=color_palette['FS'], markersize=1)
-    ax[-1].plot(ext_input_4.t / b2.second, ext_input_4.i, '.', color=color_palette['RS'], markersize=1)
+    ax[-1].plot(ext_input_4.t / b2.second, ext_input_4.i, '.', color=color_RS, markersize=1)
     
     ax[-1].set_ylabel('External Input Neuron index')
     ax[-1].set_title('External Poisson input spike raster')
@@ -207,7 +220,8 @@ def network_raster_plot(pop1=None,
                         markersize=None,
                         exc_intervals = None,
                         inh_intervals = None,
-                        x_lim=None
+                        x_lim=None,
+                        RS_adaptation=True
                         ):
     
     m_size = 1 if markersize is None else markersize
@@ -226,11 +240,15 @@ def network_raster_plot(pop1=None,
         offset += N_pop1
 
     if pop2 is not None:
+        if RS_adaptation == True:
+            color = color_palette['RS']
+        else:
+            color = color_palette['RS_no_adapt']
         ax.plot(
             pop2.t / b2.second,
             pop2.i + offset,
             ',',
-            color=color_palette['RS'],
+            color=color,
             markersize=m_size
         )
         offset += N_pop2
@@ -328,7 +346,8 @@ def plotting_pop_freq_and_std(sim_duration = None,
                               N_pop2 = None,
                               bin_size = None,
                               exc_intervals = None,
-                              inh_intervals = None):
+                              inh_intervals = None,
+                              RS_adaptation = True):
 
     # Parameters
     if bin_size == None:
@@ -360,11 +379,15 @@ def plotting_pop_freq_and_std(sim_duration = None,
     std_rate_FS = np.std(spike_matrix_FS, axis=0)
     mean_rate_RS = np.mean(spike_matrix_RS, axis=0)
     std_rate_RS = np.std(spike_matrix_RS, axis=0)
-    
+
+    if RS_adaptation == True:
+        color_RS = color_palette['RS']
+    else:
+        color_RS = color_palette['RS_no_adapt']
     
     fig, ax = plt.subplots(figsize=(10, 6))
     ax.plot(time_bins, mean_rate_FS, '.-', label='avg FS freq', color=color_palette['FS'])
-    ax.plot(time_bins, mean_rate_RS, '.-', label='avg RS freq', color=color_palette['RS'])
+    ax.plot(time_bins, mean_rate_RS, '.-', label='avg RS freq', color=color_RS)
     
     ax.fill_between(
         time_bins,
@@ -377,7 +400,7 @@ def plotting_pop_freq_and_std(sim_duration = None,
         time_bins,
         np.clip(mean_rate_RS - std_rate_RS, 0, None),    # to avoid negative firing rate
         mean_rate_RS + std_rate_RS,
-        color=color_palette['RS'], alpha=0.3, label='± RS std'
+        color=color_RS, alpha=0.3, label='± RS std'
     )
     
     ax.set_xlabel('Time (s)')
@@ -494,7 +517,8 @@ def plotting_pop_freq_and_std_h5(sim_duration = None,
                               N_pop2 = None,
                               bin_size = None,
                               exc_intervals = None,
-                              inh_intervals = None):
+                              inh_intervals = None,
+                              RS_adaptation = True):
 
     # Parameters
     if bin_size == None:
@@ -533,7 +557,11 @@ def plotting_pop_freq_and_std_h5(sim_duration = None,
     
     fig, ax = plt.subplots(figsize=(10, 6))
     plt.plot(time_bins, mean_rate_FS, '.-', label='avg FS freq', color=color_palette['FS'])
-    plt.plot(time_bins, mean_rate_RS, '.-', label='avg RS freq', color=color_palette['RS'])
+    if RS_adaptation == True:
+        color_RS = color_palette['RS']
+    else:
+        color_RS = color_palette['RS_no_adapt']
+    plt.plot(time_bins, mean_rate_RS, '.-', label='avg RS freq', color=color_RS)
     
     plt.fill_between(
         time_bins,
@@ -546,7 +574,7 @@ def plotting_pop_freq_and_std_h5(sim_duration = None,
         time_bins,
         np.clip(mean_rate_RS - std_rate_RS, 0, None),    # to avoid negative firing rate
         mean_rate_RS + std_rate_RS,
-        color=color_palette['RS'], alpha=0.3, label='± RS std'
+        color=color_RS, alpha=0.3, label='± RS std'
     )
 
     exc_intervals_binned = bin_align_intervals(exc_intervals, bin_size, time_bins)
