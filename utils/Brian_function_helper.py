@@ -26,6 +26,22 @@ Ei:volt
 Tsyn:second
 '''
 
+# Definying conductance-based synaptic model #
+syn_eqs = '''
+dgE/dt = -gE/tau_syn_e : siemens
+dgI/dt = -gI/tau_syn_i : siemens
+
+IE = -gE*(V_hold - Ee) : ampere
+II = -gI*(V_hold - Ei) : ampere
+Itot = IE + II : ampere
+
+tau_syn_e : second
+tau_syn_i : second
+Ee : volt
+Ei : volt
+V_hold : volt
+'''
+
 # -------------------- #
 def setting_simulation_Brian(idx = None, N_cell = None, neuron_model = None, json_file_name = None, curr_inj = None, sim_info = False):
     if N_cell == None:
@@ -83,6 +99,63 @@ def setting_simulation_Brian(idx = None, N_cell = None, neuron_model = None, jso
         return G
 
 # -------------------- #
+def voltage_clamp_synapse(V_hold = None, idx = None, json_file_name = None, dt = None, sim_info = False):
+
+    if idx is None:
+        idx = 0
+        
+    if json_file_name is None:
+        raise ValueError("Plese, specify the json_file_name containing the synaptic model parameters")    
+    
+    with open(json_file_name, 'r') as file:
+        data = json.load(file)
+    
+    if sim_info is True:
+        print(f'Imported data: {json_file_name}')
+
+    if dt is None:
+        dt = 0.1
+    
+    b2.start_scope()
+    b2.defaultclock.dt = dt * b2.ms
+
+    G = b2.NeuronGroup(1, syn_eqs, method='exact')
+
+    # Parameters
+    G.tau_syn_e = data[0][0]['model']['tau_e'] * b2.ms
+    G.tau_syn_i = data[0][0]['model']['tau_i'] * b2.ms
+    G.Ee = data[0][0]['model']['E_e'] * b2.mV
+    G.Ei = data[0][0]['model']['E_i'] * b2.mV
+
+    sim_time = data[0][0]['simulation']['sim_duration'] * b2.ms
+    t_event = data[0][0]['simulation']['t_pulse'] * b2.ms
+    
+    if V_hold is not None:
+        V_hold = V_hold
+    else:
+        V_hold = -60 #mV
+        
+    G.V_hold = V_hold * b2.mV
+
+    # Initial conductances
+    G.gE = data[0][0]['init']['g_E'] * b2.nS
+    G.gI = data[0][0]['init']['g_I'] * b2.nS
+
+    # Inject synaptic event
+    @b2.network_operation(dt=dt*b2.ms)
+    def inject_event():
+        if abs(b2.defaultclock.t - t_event) < 0.5*dt*b2.ms:
+            G.gE += data[0][0]['model']['Q_e'] * b2.nS
+            G.gI += data[0][0]['model']['Q_i'] * b2.nS
+
+    M = b2.StateMonitor(G, ['gE','gI','IE','II','Itot'], record=True)
+
+    net = b2.Network(G, inject_event, M)
+    net.run(sim_time)
+    
+    return M
+
+# -------------------- #
 def network_creation(conn_prob = None, 
                      pop_1 = None, pop_2 = None,
                      Qe = None, Qi = None,
@@ -120,7 +193,7 @@ def extracting_pop_freq_and_std(sim_duration = None,
 
     # Parameters
     if bin_size == None:
-        bin_size = 0.1  # seconds
+        bin_size = 0.1 # seconds
     bin_edges = np.arange(0, sim_duration / b2.second + bin_size, bin_size)
     time_bins = bin_edges[:-1]
     
