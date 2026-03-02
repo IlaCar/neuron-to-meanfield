@@ -1,0 +1,33 @@
+[
+    [
+        {
+            "metainfo": "Synaptic configuration",
+            "model": {
+                "E_e": 0,
+                "Q_e": 1.5,
+                "tau_e": 5,                
+                "E_i": -80,
+                "Q_i": 5.0,               
+                "tau_i": 5
+            },
+            "init": {
+                "g_E": 0,
+                "g_I": 0
+            },
+            "simulation":{
+                "sim_duration": 60,
+                "t_pulse": 20
+            },
+            "units": {
+                "E_e": "mV",
+                "Q_e": "nS",
+                "tau_e": "ms",                
+                "E_i": "mV",
+                "Q_i": "nS",
+                "tau_syn": "ms",
+                "g_E": "nS",
+                "g_I": "nS"
+            }
+        }
+    ]
+]
