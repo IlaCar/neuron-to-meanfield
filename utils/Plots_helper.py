@@ -15,11 +15,16 @@ import seaborn as sns
 import brian2 as b2
 
 # -------------------- #
-color_palette = {"FS": '#cb181d',
-                 "RS": '#238b45',
-                 "RS_no_adapt": '#2171b5',
-                 "input": '#9ecae1'}
+color_palette = {"FS": '#cb181d',           # red
+                 "RS": '#238b45',           # green
+                 "RS_no_adapt": '#2171b5',  # blue
+                 "input": '#9ecae1'}        # light blue
 
+syn_colors = {
+    "E": "#3d9a8e",     # teal
+    "I": "#6a3d9a",     # purple
+    "Total": "#000000"  # black
+}
 # -------------------- #                 
 def get_pretty_voltage(volt, thresh):
     for i in range(len(volt) - 1):
