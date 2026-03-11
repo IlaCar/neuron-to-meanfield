@@ -163,8 +163,7 @@ def add_input_boxes(ax,
                     f"{pop}+",
                     ha="center",
                     va="center",
-                    fontsize=14,
-                    weight="bold",
+                    fontsize=10
                 )
 
     # inhibitory inputs
@@ -187,8 +186,7 @@ def add_input_boxes(ax,
                     f"{pop}−",
                     ha="center",
                     va="center",
-                    fontsize=14,
-                    weight="bold",
+                    fontsize=10
                 )
                 
     # general input -- exc and inh together
@@ -226,12 +224,14 @@ def network_raster_plot(pop1=None,
                         exc_intervals = None,
                         inh_intervals = None,
                         x_lim=None,
-                        RS_adaptation=True
+                        RS_adaptation=True,
+                        input_boxes = True
                         ):
     
     m_size = 1 if markersize is None else markersize
         
     fig, ax = plt.subplots(figsize=(10, 6))
+    #fig, ax = plt.subplots(figsize=(10, 3))
     offset = 0
 
     if pop1 is not None:
@@ -240,7 +240,8 @@ def network_raster_plot(pop1=None,
             pop1.i + offset,
             ',',
             color=color_palette['FS'],
-            markersize=m_size
+            markersize=m_size,
+            rasterized = True
         )
         offset += N_pop1
 
@@ -254,7 +255,8 @@ def network_raster_plot(pop1=None,
             pop2.i + offset,
             ',',
             color=color,
-            markersize=m_size
+            markersize=m_size,
+            rasterized = True            
         )
         offset += N_pop2
    
@@ -277,6 +279,7 @@ def network_raster_plot(pop1=None,
         0.01,  # x in axes coords
         N_pop1 / 2,
         'FS',
+        color = color_palette['FS'],
         transform=ax.get_yaxis_transform(),
         va='center',
         ha='left',
@@ -287,6 +290,7 @@ def network_raster_plot(pop1=None,
         0.01,
         N_pop1 + N_pop2 / 2,
         'RS',
+        color = color,        
         transform=ax.get_yaxis_transform(),
         va='center',
         ha='left',
@@ -296,7 +300,8 @@ def network_raster_plot(pop1=None,
     ax.set_title('Network Raster Plot')
 
     # Input boxes 
-    ax = add_input_boxes(
+    if input_boxes == True:
+        ax = add_input_boxes(
         ax=ax,
         exc_intervals=exc_intervals,
         inh_intervals=inh_intervals,
@@ -352,7 +357,8 @@ def plotting_pop_freq_and_std(sim_duration = None,
                               bin_size = None,
                               exc_intervals = None,
                               inh_intervals = None,
-                              RS_adaptation = True):
+                              RS_adaptation = True,
+                              input_boxes = True):
 
     # Parameters
     if bin_size == None:
@@ -391,6 +397,7 @@ def plotting_pop_freq_and_std(sim_duration = None,
         color_RS = color_palette['RS_no_adapt']
     
     fig, ax = plt.subplots(figsize=(10, 6))
+    #fig, ax = plt.subplots(figsize=(10, 3))
     ax.plot(time_bins, mean_rate_FS, '.-', label='avg FS freq', color=color_palette['FS'])
     ax.plot(time_bins, mean_rate_RS, '.-', label='avg RS freq', color=color_RS)
     
@@ -418,7 +425,8 @@ def plotting_pop_freq_and_std(sim_duration = None,
     inh_intervals_binned = bin_align_intervals(inh_intervals, bin_size, time_bins)
    
     # Input boxes 
-    ax = add_input_boxes(
+    if input_boxes == True:
+        ax = add_input_boxes(
         ax = ax,
         exc_intervals = exc_intervals_binned,
         inh_intervals = inh_intervals_binned,
@@ -443,7 +451,8 @@ def network_raster_plot_h5(pop1 = None,
                         markersize = None,
                         x_lim = None,
                         exc_intervals = None,
-                        inh_intervals = None):
+                        inh_intervals = None,
+                        input_boxes = True):
     
     if markersize == None:
         m_size = 1
@@ -501,16 +510,17 @@ def network_raster_plot_h5(pop1 = None,
     ax.set_title('Network Raster Plot')
 
     # Input boxes 
-    ax = add_input_boxes(
-        ax=ax,
-        exc_intervals=exc_intervals,
-        inh_intervals=inh_intervals,
-        n_neurons=total_neurons,
-        box_height=300,
-        pad=200,
-        alpha=0.3,
-        annotate=True,
-    )
+    if input_boxes == True:
+        ax = add_input_boxes(
+            ax=ax,
+            exc_intervals=exc_intervals,
+            inh_intervals=inh_intervals,
+            n_neurons=total_neurons,
+            box_height=300,
+            pad=200,
+            alpha=0.3,
+            annotate=True,
+        )
     
     return fig
 
@@ -656,7 +666,8 @@ def plotting_single_pop_freq_and_std(sim_duration = None,
                                      pop = None, 
                                      N_pop = None,
                                      bin_size = None,
-                                     input_interval = None):
+                                     input_interval = None,
+                                     input_boxes = True):
 
     # Parameters
     if bin_size == None:
@@ -700,7 +711,8 @@ def plotting_single_pop_freq_and_std(sim_duration = None,
     input_interval_binned = bin_align_intervals(input_interval, bin_size, time_bins)
    
     # Input boxes 
-    ax = add_input_boxes(
+    if input_boxes == True:
+        ax = add_input_boxes(
         ax = ax,
         input_interval = input_interval_binned,
         n_neurons = N_pop,
