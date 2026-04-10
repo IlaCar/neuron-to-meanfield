@@ -1,0 +1,18 @@
+[project]
+name = "ntmf"
+version = "0.1.0"
+description = "Bridging Scales: From Single Neurons to Mean-Field Model"
+
+[tool.setuptools.packages.find]
+include = ["ntmf*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "slow: tests requiring full Brian2 simulations (seconds to minutes)",
+]
+addopts = "-v --tb=short"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
