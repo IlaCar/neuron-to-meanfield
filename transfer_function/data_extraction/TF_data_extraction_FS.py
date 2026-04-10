@@ -11,7 +11,7 @@ from utils.Brian_function_helper import *
 from utils.Plots_helper import *
 from utils.Sim_helper import *
 
-simualtion_folder = os.path.join('TF_FS_v0')
+simualtion_folder = os.path.join('TF_FS_v1')
 isExist = os.path.exists(simualtion_folder)
 if not isExist:
    os.makedirs(simualtion_folder)
@@ -59,8 +59,8 @@ rate_exc_background = input_config['rates']['background_freq'] * b2.Hz # firing 
 step_freq_inh = 0.5 #Hz
 step_freq_exc = 0.5 #Hz
 
-external_input_inh_range = np.arange(0, 20, step_freq_inh) #Hz
-external_input_exc_range = np.arange(0, 20, step_freq_exc) #Hz
+external_input_inh_range = np.arange(0, 30.5, step_freq_inh) #Hz
+external_input_exc_range = np.arange(0, 30.5, step_freq_exc) #Hz
 
 # Two seconds stimulation
 p_start = 2 * b2.second

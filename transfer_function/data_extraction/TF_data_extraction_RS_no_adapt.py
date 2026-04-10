@@ -11,7 +11,7 @@ from utils.Brian_function_helper import *
 from utils.Plots_helper import *
 from utils.Sim_helper import *
 
-simualtion_folder = os.path.join('TF_RS_delay_v1')
+simualtion_folder = os.path.join('TF_RS_no_adapt_v1')
 isExist = os.path.exists(simualtion_folder)
 if not isExist:
    os.makedirs(simualtion_folder)
@@ -31,7 +31,7 @@ data_folder = '../../neuron_models/AdEx'
 idx = 0 # in this case only one model per cell type is provided
 
 # Defining neuron model
-neuron_model = 'RS'
+neuron_model = 'RS_no_adapt'
 
 # Setting up the artificial 'fake' current injection
 stim_t_start = 0
@@ -65,7 +65,7 @@ external_input_exc_range = np.arange(0, 30.5, step_freq_exc) #Hz
 # Two seconds stimulation
 p_start = 2 * b2.second
 p_end = 5 * b2.second
-delay = 1 * b2.second
+delay = 0 * b2.second
 
 input_interval = [(p_start / b2.second, p_end / b2.second)]
 
@@ -105,7 +105,7 @@ for i, ext_input_inh in enumerate(external_input_inh_range):
         # Poissoninan background input activity
         rate_array = b2.zeros(len(times)) * b2.Hz
         rate_array[(times >= p_start_0) & (times < p_end_0)] = rate_exc_background 
-                # Create the TimedArray
+        # Create the TimedArray
         rate_timed_array_bg = b2.TimedArray(rate_array, dt=dt)
         
         rate_array_inh = b2.zeros(len(times)) * b2.Hz
@@ -190,8 +190,6 @@ for i, ext_input_inh in enumerate(external_input_inh_range):
         n_sim += 1
 
 print(f'Simulations completed!')
-
-print(in_inh, in_exc, FREQ_avg.flatten(), FREQ_std.flatten())
 
 print('... Saving .dat files...')
 data = np.column_stack((in_inh, in_exc, FREQ_avg.flatten(), FREQ_std.flatten()))
