@@ -18,3 +18,19 @@ figures
 
 # Personal worklog
 worklog.txt
+
+# Converted .py scripts from notebooks (derivatives, not source of truth)
+/single_neuron_simulation/Figure*.py
+/single_neuron_simulation/single_neuron_current_injection.py
+/single_neuron_simulation/single_neuron_synaptic_stimulation.py
+/neural_network_simulation/*.py
+/synaptic_model/Voltage_clamp.py
+/transfer_function/analysis/*.py
+/transfer_function/data_extraction/Analysing_extracted_data.py
+/transfer_function/fitting/TF_fitting_RS.py
+/transfer_function/validation/MF_val.py
+/transfer_function/validation/NN_FS_RS_val_data.py
+
+# Executed notebook outputs
+*_executed.ipynb
+__pycache__
