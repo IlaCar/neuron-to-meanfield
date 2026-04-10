@@ -1,6 +1,6 @@
 [
     {
-        "metainfo": "Network config file -- Fig2",
+        "metainfo": "Network config file -- Fig3",
         "network_composition": {
             "tot_neurons": 10000,
             "FS_neuron": 2000,
