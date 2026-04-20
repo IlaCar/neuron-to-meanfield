@@ -72,7 +72,7 @@ def adding_K_params(neuron_params = None, network_config = None):
     return neuron_params
 
 # ---------------------------------------------------
-def membrane_potential_fluctuations(neuron_model = None, data = None, params = None):
+def membrane_potential_fluctuations(neuron_model = None, data = None, params = None, w_ad = None):
     '''
     This function computes the mean, standard deviation and autocorrelation time constant
     of the membrane potential fluctuations as defined in
@@ -86,8 +86,12 @@ def membrane_potential_fluctuations(neuron_model = None, data = None, params = N
     f_e = np.maximum(f_e, 1e-9)
     f_i = np.maximum(f_i, 1e-9)    
     
-    w_ad = np.zeros(len(f_i))
-
+    # w_ad can passed, if not, by default is set to an array of zeros
+    if w_ad is None:
+        w_ad = np.zeros(len(f_i))
+    else:
+        w_ad = np.asarray(w_ad)
+        
     ### eq. 5 in Zerlaut et al., (2018)
     mu_Ge = f_e * params['K_e'] * params['tau_syn'] * params['Q_e']
     sig_Ge = np.sqrt(0.5 * f_e * params['K_e'] * params['tau_syn']) * params['Q_e']
@@ -307,10 +311,11 @@ def TF_template(neuron_model = None,
                 data = None,
                 params = None,
                 poly_params = None,
-                alpha = None):
+                alpha = None,
+                w_ad = None):
 
     # compute mu_V, sig_V, tau_V (tau_V in seconds), tau_V_norm
-    mu_V, sig_V, tau_V, tau_V_norm = membrane_potential_fluctuations(neuron_model = neuron_model, data=data, params=params)
+    mu_V, sig_V, tau_V, tau_V_norm = membrane_potential_fluctuations(neuron_model = neuron_model, data=data, params=params, w_ad=w_ad)
     
     # ensure arrays and shapes match
     mu_V = np.asarray(mu_V)
