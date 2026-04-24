@@ -301,14 +301,16 @@ class TestMeanFieldODE:
     def test_ode_failure_raises(self, mf_params):
         """When solve_ivp fails, the RuntimeError path should trigger (line 206)."""
         from unittest.mock import patch
-        from scipy.integrate._ivp.ivp import OdeResult
+        from types import SimpleNamespace
 
         T, dt = 0.1, 1e-3
         time = np.arange(0, T, dt)
 
         # Create a failed OdeResult
-        failed_result = OdeResult(t=time, y=np.zeros((2, len(time))), success=False,
-                                  message="Test failure")
+        failed_result = SimpleNamespace(
+            t=time, y=np.zeros((2, len(time))), success=False,
+            message="Test failure"
+        )
 
         with patch("ntmf.meanfield.solve_ivp", return_value=failed_result):
             with pytest.raises(RuntimeError, match="ODE integration failed"):

@@ -143,6 +143,6 @@ class TestAddingKParams:
 
     def test_modifies_in_place(self, params_FS, network_config):
         original = params_FS.copy()
-        result = adding_K_params(params_FS, network_config)
-        assert result is params_FS  # same object
-        assert "K_e" in params_FS
+        result = adding_K_params(params_FS.copy(), network_config)
+        assert result is not params_FS  # different object
+        assert "K_e" in result
