@@ -304,6 +304,7 @@ def get_mean_error_distribution(
     params_SI: dict[str, float],
     alpha: float,
     unique_inh: np.ndarray,
+    alpha_idx: int | None = None,
 ) -> np.ndarray:
     """Compute mean error sliced by inhibitory input level."""
     distr = np.zeros(len(unique_inh))
