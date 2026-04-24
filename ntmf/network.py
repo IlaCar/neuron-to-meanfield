@@ -102,12 +102,8 @@ def extracting_pop_freq_and_std(
     std_rate_RS = np.std(spike_matrix_RS, axis=0)
 
     # Select stimulation window
-    if p_end == sim_duration - p_start:
-        left_bound = int((p_start / bin_size).item())
-        right_bound = -left_bound + 1
-    else:
-        left_bound = int((p_start / bin_size).item())
-        right_bound = int((p_end / bin_size).item())
+    left_bound = int((p_start / bin_size).item())
+    right_bound = int((p_end / bin_size).item())
 
     mean_rates = [
         float(np.mean(mean_rate_FS[left_bound:right_bound])),

@@ -113,7 +113,7 @@ class TestExtractingPopFreqAndStd:
         assert mean_rates[1] >= 0
 
     def test_symmetric_stimulus_window(self):
-        """When p_end == sim_duration - p_start, uses the symmetric branch (line 109-110)."""
+        """Uniform boundary computation works for symmetric windows."""
         # sim_duration=2.0, p_start=0.5, p_end=1.5 → p_end == sim_duration - p_start = 1.5
         rng = np.random.default_rng(42)
         ids1 = np.repeat(np.arange(3), 10)
