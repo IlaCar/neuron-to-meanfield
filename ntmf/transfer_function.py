@@ -299,13 +299,11 @@ def TF_template_sim(
 # ---------------------------------------------------------------------------
 
 def get_mean_error_distribution(
-    neuron_model: str,
     df_data: pd.DataFrame,
     poly_params_2: np.ndarray,
     params_SI: dict[str, float],
     alpha: float,
     unique_inh: np.ndarray,
-    alpha_idx: Optional[int] = None,
 ) -> np.ndarray:
     """Compute mean error sliced by inhibitory input level."""
     distr = np.zeros(len(unique_inh))

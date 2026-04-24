@@ -305,7 +305,6 @@ class TestGetMeanErrorDistribution:
 
         unique_inh = np.array([0.0, 10.0, 20.0, 30.0])
         distr = get_mean_error_distribution(
-            neuron_model="RS",
             df_data=synthetic_RS_tf_data,
             poly_params_2=poly,
             params_SI=params_RS_with_K,
@@ -324,7 +323,6 @@ class TestGetMeanErrorDistribution:
 
         unique_inh = np.array([0.0, 10.0, 20.0])
         distr = get_mean_error_distribution(
-            neuron_model="RS",
             df_data=synthetic_RS_tf_data,
             poly_params_2=poly,
             params_SI=params_RS_with_K,
