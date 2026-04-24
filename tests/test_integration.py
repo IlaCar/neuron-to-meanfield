@@ -204,7 +204,7 @@ class TestSmallPipeline:
 
                 b2.run(sim_duration, namespace={
                     "ta_bg": ta_bg, "ta_exc": ta_exc, "ta_inh": ta_inh,
-                    "Qe": Qe, "Qi": Qi,
+                    "Qe": Qe, "Qi": Qi, "current": stim,
                 })
 
                 mean_rate, std_rate = extracting_single_pop_freq_and_std(

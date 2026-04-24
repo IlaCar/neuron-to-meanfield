@@ -152,9 +152,9 @@ def voltage_clamp_synapse(
     with open(json_file_name, "r") as fh:
         data = json.load(fh)
 
-    m = data[0][0]["model"]
-    s = data[0][0]["simulation"]
-    init = data[0][0]["init"]
+    m = data[0][idx]["model"]
+    s = data[0][idx]["simulation"]
+    init = data[0][idx]["init"]
 
     b2.start_scope()
     b2.defaultclock.dt = dt * b2.ms
