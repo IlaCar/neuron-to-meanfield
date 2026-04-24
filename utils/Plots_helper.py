@@ -384,6 +384,10 @@ def plotting_pop_freq_and_std(sim_duration = None,
     # Convert to rate (Hz)
     spike_matrix_FS /= bin_size
     spike_matrix_RS /= bin_size
+
+    # Strip any Brian2 units for downstream numpy operations
+    spike_matrix_FS = np.asarray(spike_matrix_FS)
+    spike_matrix_RS = np.asarray(spike_matrix_RS)
        
     # Compute mean and std
     mean_rate_FS = np.mean(spike_matrix_FS, axis=0)
@@ -561,6 +565,9 @@ def plotting_pop_freq_and_std_h5(sim_duration = None,
     spike_matrix_FS /= bin_size
     spike_matrix_RS /= bin_size
     
+    # Strip any Brian2 units for downstream numpy operations
+    spike_matrix_FS = np.asarray(spike_matrix_FS)
+    spike_matrix_RS = np.asarray(spike_matrix_RS)
     
     # Compute mean and std
     mean_rate_FS = np.mean(spike_matrix_FS, axis=0)
@@ -686,6 +693,9 @@ def plotting_single_pop_freq_and_std(sim_duration = None,
       
     # Convert to rate (Hz)
     spike_matrix /= bin_size
+    
+    # Strip any Brian2 units for downstream numpy operations
+    spike_matrix = np.asarray(spike_matrix)
         
     # Compute mean and std
     mean_rate = np.mean(spike_matrix, axis=0)

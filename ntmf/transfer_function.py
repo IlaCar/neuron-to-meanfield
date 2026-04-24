@@ -299,14 +299,43 @@ def TF_template_sim(
 # ---------------------------------------------------------------------------
 
 def get_mean_error_distribution(
-    df_data: pd.DataFrame,
-    poly_params_2: np.ndarray,
-    params_SI: dict[str, float],
-    alpha: float,
-    unique_inh: np.ndarray,
-    alpha_idx: int | None = None,
+    *args,
+    **kwargs,
 ) -> np.ndarray:
-    """Compute mean error sliced by inhibitory input level."""
+    """Compute mean error sliced by inhibitory input level.
+
+    Backward-compatible with old ``utils/TF_helper.py`` signature:
+
+        get_mean_error_distribution(neuron_model, df_data, poly_params_2,
+                                     params_SI, alpha, unique_inh, alpha_idx=None)
+
+    and the preferred new signature:
+
+        get_mean_error_distribution(df_data, poly_params_2, params_SI,
+                                     alpha, unique_inh, alpha_idx=None)
+    """
+    alpha_idx: int | None = kwargs.pop("alpha_idx", None)
+
+    if len(args) == 5:          # new positional call
+        df_data, poly_params_2, params_SI, alpha, unique_inh = args
+    elif len(args) == 6:       # old positional call (neuron_model as arg 1)
+        _neuron_model, df_data, poly_params_2, params_SI, alpha, unique_inh = args
+    elif len(args) == 7:       # old positional with alpha_idx
+        _neuron_model, df_data, poly_params_2, params_SI, alpha, unique_inh, passed_alpha_idx = args
+        if alpha_idx is None:
+            alpha_idx = passed_alpha_idx
+    else:                       # keyword-only call
+        df_data = kwargs.pop("df_data")
+        poly_params_2 = kwargs.pop("poly_params_2")
+        params_SI = kwargs.pop("params_SI")
+        alpha = kwargs.pop("alpha")
+        unique_inh = kwargs.pop("unique_inh")
+        if alpha_idx is None and "alpha_idx" in kwargs:
+            alpha_idx = kwargs.pop("alpha_idx")
+
+    if not isinstance(df_data, pd.DataFrame):
+        raise TypeError(f"Expected df_data to be a DataFrame, got {type(df_data)}")
+
     distr = np.zeros(len(unique_inh))
     for idx, fixed_inh in enumerate(unique_inh):
         tol = 1e-6
