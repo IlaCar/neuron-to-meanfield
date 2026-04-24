@@ -7,9 +7,10 @@ parent_dir = os.path.abspath(os.path.join(cwd, '..', '..'))
 sys.path.append(parent_dir)
 # We do this so that we can directly import files in the utils folder
 
-from utils.Brian_function_helper import *
+from ntmf.config import get_input_config, get_syn_info
+from ntmf.neurons import setting_simulation_Brian
+from ntmf.network import extracting_single_pop_freq_and_std
 from utils.Plots_helper import *
-from utils.Sim_helper import *
 
 simualtion_folder = os.path.join('TF_RS_no_adapt_v1')
 isExist = os.path.exists(simualtion_folder)

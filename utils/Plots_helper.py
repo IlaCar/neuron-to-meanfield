@@ -1019,7 +1019,7 @@ def plot_TF_fitting_viridis(neuron_model, df_data, mean_error, unique_inh, color
 # -------------------- #
 def plots_TF_fitting(neuron_model, df_data, std_data, poly_params_2, params_SI, alpha, unique_inh, colors, y_lim = None):
     
-    from utils.TF_helper import res_2_func
+    from ntmf.transfer_function import res_2_func
     distr_mean_error = np.zeros(len(unique_inh))
     idx = 0
     for fixed_inh, c in zip(unique_inh, colors):
@@ -1082,7 +1082,7 @@ def plots_TF_distr_mean_error(neuron_model, inh_vals, mean_error,
 def make_TF_gif(neuron_model, df_data, std_data, poly_params_2, params_SI, alpha, unique_inh, colors, gif_name, y_lim=None):
 
     import imageio.v2 as imageio
-    from utils.TF_helper import res_2_func
+    from ntmf.transfer_function import res_2_func
 
     frames = []
 
@@ -1325,6 +1325,56 @@ def plot_pca_biplot(neuron_model, params_name, X_pca, loadings, expl_var):
     ax.set_title(f"PCA biplot: \n {neuron_model} poly coefficients")
     plt.tight_layout()
 
+    return fig
+
+
+
+def plot_membrane_potential_fluctuations(data=None, mu_V=None, sig_V=None, tau_V=None):
+    """Visualize membrane potential fluctuations as a 4-panel heatmap.
+
+    Panels: mu_V, sig_V, tau_V, and output firing rate.
+    """
+    fig, axs = plt.subplots(4, 1, figsize=(8, 8))
+
+    inh_vals = sorted(data['input_inh'].unique())
+    exc_vals = sorted(data['input_exc'].unique())
+
+    n_inh = len(inh_vals)
+    n_exc = len(exc_vals)
+
+    out_freq = data['avg_f_out'].to_numpy().reshape(n_inh, n_exc)
+    mu_V = mu_V.reshape(n_inh, n_exc)
+    sig_V = sig_V.reshape(n_inh, n_exc)
+    tau_V = tau_V.reshape(n_inh, n_exc)
+
+    heatmap_kwargs = dict(
+        cmap='viridis',
+        xticklabels=exc_vals,
+        yticklabels=inh_vals,
+    )
+
+    datasets = [
+        (mu_V, 'Mean Membrane Potential [V]'),
+        (sig_V, 'Membrane Potential Std [V]'),
+        (tau_V, 'Autocorrelation Time [s]'),
+        (out_freq, 'Output Frequency [Hz]'),
+    ]
+
+    for ax, (data_map, title) in zip(axs, datasets):
+        sns.heatmap(data_map, ax=ax, **heatmap_kwargs)
+        ax.set_title(title)
+        ax.set_xlabel('Freq. exc [Hz]')
+        ax.set_ylabel('Freq. inh [Hz]')
+
+        # Reduce label density
+        step_x = max(1, len(exc_vals) // 10)
+        step_y = max(1, len(inh_vals) // 5)
+        ax.set_xticks(np.arange(0.5, n_exc, step_x))
+        ax.set_xticklabels(np.round(exc_vals[::step_x], 1), rotation=60)
+        ax.set_yticks(np.arange(0.5, n_inh, step_y))
+        ax.set_yticklabels(np.round(inh_vals[::step_y], 1), rotation=0)
+
+    plt.tight_layout(h_pad=1.5)
     return fig
 
 

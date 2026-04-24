@@ -8,7 +8,8 @@ parent_dir = os.path.abspath(os.path.join(cwd, '..'))
 sys.path.append(parent_dir)
 
 
-from utils.Brian_function_helper import *
+from ntmf.neurons import setting_simulation_Brian
+import brian2 as b2
 
 ### specify the neuron model ###
 neuron_model = 'RS' 
