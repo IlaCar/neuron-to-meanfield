@@ -1,0 +1,113 @@
+{
+  "repo_root": "/home/duke/src/neuron-to-meanfield",
+  "timeout_s": 120,
+  "quick_mode": true,
+  "total": 20,
+  "pass": 17,
+  "fail": 0,
+  "timeout": 0,
+  "skip_heavy": 2,
+  "skip_known_bug": 1,
+  "results": {
+    "neural_network_simulation/Analysing_NN.ipynb": {
+      "status": "PASS",
+      "elapsed_s": 4.5,
+      "error": ""
+    },
+    "neural_network_simulation/Figure3_A.ipynb": {
+      "status": "PASS",
+      "elapsed_s": 34.6,
+      "error": ""
+    },
+    "neural_network_simulation/Figure3_B.ipynb": {
+      "status": "PASS",
+      "elapsed_s": 49.3,
+      "error": ""
+    },
+    "neural_network_simulation/NN_FS_RS.ipynb": {
+      "status": "SKIP_HEAVY",
+      "elapsed_s": 0,
+      "error": ""
+    },
+    "neural_network_simulation/NN_FS_RS_no_adapt.ipynb": {
+      "status": "SKIP_HEAVY",
+      "elapsed_s": 0,
+      "error": ""
+    },
+    "single_neuron_simulation/Figure1_A.ipynb": {
+      "status": "PASS",
+      "elapsed_s": 3.8,
+      "error": ""
+    },
+    "single_neuron_simulation/Figure1_B.ipynb": {
+      "status": "PASS",
+      "elapsed_s": 2.9,
+      "error": ""
+    },
+    "single_neuron_simulation/Figure2_B.ipynb": {
+      "status": "PASS",
+      "elapsed_s": 20.9,
+      "error": ""
+    },
+    "single_neuron_simulation/single_neuron_current_injection.ipynb": {
+      "status": "PASS",
+      "elapsed_s": 3.6,
+      "error": ""
+    },
+    "single_neuron_simulation/single_neuron_synaptic_stimulation.ipynb": {
+      "status": "PASS",
+      "elapsed_s": 32.0,
+      "error": ""
+    },
+    "synaptic_model/Voltage_clamp.ipynb": {
+      "status": "PASS",
+      "elapsed_s": 4.5,
+      "error": ""
+    },
+    "transfer_function/analysis/Analysing_params_distribution_FS.ipynb": {
+      "status": "PASS",
+      "elapsed_s": 4.0,
+      "error": ""
+    },
+    "transfer_function/analysis/Analysing_params_distribution_RS.ipynb": {
+      "status": "PASS",
+      "elapsed_s": 3.7,
+      "error": ""
+    },
+    "transfer_function/analysis/Analysing_params_distribution_RS_no_adapt.ipynb": {
+      "status": "PASS",
+      "elapsed_s": 3.7,
+      "error": ""
+    },
+    "transfer_function/analysis/Comparing_neuron_types.ipynb": {
+      "status": "PASS",
+      "elapsed_s": 4.4,
+      "error": ""
+    },
+    "transfer_function/data_extraction/Analysing_extracted_data.ipynb": {
+      "status": "PASS",
+      "elapsed_s": 6.0,
+      "error": ""
+    },
+    "transfer_function/fitting/TF_fitting_RS.ipynb": {
+      "status": "SKIP_KNOWN_BUG",
+      "elapsed_s": 0,
+      "error": ""
+    },
+    "transfer_function/validation/MF_val.ipynb": {
+      "status": "PASS",
+      "elapsed_s": 2.6,
+      "error": ""
+    },
+    "transfer_function/validation/MF_vs_NN_validation.ipynb": {
+      "status": "PASS",
+      "elapsed_s": 3.4,
+      "error": ""
+    },
+    "transfer_function/validation/NN_FS_RS_val_data.ipynb": {
+      "status": "PASS",
+      "elapsed_s": 14.7,
+      "error": ""
+    }
+  }
+}
