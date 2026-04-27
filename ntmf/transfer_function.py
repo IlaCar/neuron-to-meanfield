@@ -39,6 +39,7 @@ _TAU_D =   1.0    # s   – scale for τ_V
 def membrane_potential_fluctuations(
     data: pd.DataFrame,
     params: dict[str, float],
+    w_ad: float | np.ndarray = 0.0,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Compute (μ_V, σ_V, τ_V, τ_V_norm) for each row in *data*.
 
@@ -53,6 +54,8 @@ def membrane_potential_fluctuations(
         Must have columns ``input_exc`` and ``input_inh``.
     params : dict
         Must contain K_e, K_i, tau_syn, Q_e, Q_i, g_L, C_m, E_e, E_i, E_L.
+    w_ad : float or ndarray, optional
+        Adaptation current. Default 0 (no adaptation).
 
     Returns
     -------
@@ -71,8 +74,9 @@ def membrane_potential_fluctuations(
     mu_G = mu_Ge + mu_Gi + params["g_L"]
     tau_m = params["C_m"] / mu_G
 
-    # eq. 7 – mean membrane potential (adaptation w_ad = 0)
-    w_ad = np.zeros_like(f_i)
+    # eq. 7 – mean membrane potential (with optional adaptation)
+    if np.ndim(w_ad) == 0:
+        w_ad = np.full_like(f_i, w_ad)
     mu_V = (mu_Ge * params["E_e"] + mu_Gi * params["E_i"]
             + params["g_L"] * params["E_L"] - w_ad) / mu_G
 
@@ -248,6 +252,7 @@ def TF_template(
     params: dict[str, float],
     poly_params: np.ndarray | list,
     alpha: float,
+    w_ad: float = 0.0,
 ) -> np.ndarray:
     """Vectorised transfer function: (ν_e, ν_i) → F_out.
 
@@ -255,7 +260,7 @@ def TF_template(
         F_out = α · erfc(z) / (2 · τ_V)
     where z = (V_th_eff − μ_V) / (√2 · σ_V).
     """
-    mu_V, sig_V, tau_V, tau_V_norm = membrane_potential_fluctuations(data=data, params=params)
+    mu_V, sig_V, tau_V, tau_V_norm = membrane_potential_fluctuations(data=data, params=params, w_ad=w_ad)
 
     sig_V_safe = np.maximum(np.asarray(sig_V), 1e-9)
     tau_V_safe = np.maximum(np.asarray(tau_V), 1e-9)
