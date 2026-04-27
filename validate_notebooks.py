@@ -41,11 +41,6 @@ HEAVY_NOTEBOOKS = {
     "neural_network_simulation/NN_FS_RS_no_adapt.ipynb",
 }
 
-# Notebook with a known pre-existing bug (make_TF_gif signature mismatch)
-KNOWN_BUGS = {
-    "transfer_function/fitting/TF_fitting_RS.ipynb",
-}
-
 
 def find_repo_root() -> str:
     """Walk up from script location to find repo root (has AGENTS.md + ntmf/)."""
@@ -161,8 +156,6 @@ def main():
         decision = "RUN"
         if args.quick and label in HEAVY_NOTEBOOKS:
             decision = "SKIP_HEAVY"
-        elif label in KNOWN_BUGS:
-            decision = "SKIP_KNOWN_BUG"
 
         if decision.startswith("SKIP"):
             results[label] = {"status": decision, "elapsed_s": 0, "error": ""}
@@ -184,7 +177,6 @@ def main():
         "fail": sum(1 for r in results.values() if r["status"] == "FAIL"),
         "timeout": sum(1 for r in results.values() if r["status"] == "TIMEOUT"),
         "skip_heavy": sum(1 for r in results.values() if r["status"] == "SKIP_HEAVY"),
-        "skip_known_bug": sum(1 for r in results.values() if r["status"] == "SKIP_KNOWN_BUG"),
         "results": results,
     }
 
@@ -204,8 +196,7 @@ def main():
         f"| PASS | {report['pass']} |\n",
         f"| FAIL | {report['fail']} |\n",
         f"| TIMEOUT | {report['timeout']} |\n",
-        f"| SKIP_HEAVY | {report['skip_heavy']} |\n",
-        f"| SKIP_KNOWN_BUG | {report['skip_known_bug']} |\n\n",
+        f"| SKIP_HEAVY | {report['skip_heavy']} |\n\n",
         "## Details\n\n",
         "| Notebook | Status | Time | Error |\n",
         "|---|---|---|---|\n",

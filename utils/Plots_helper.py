@@ -1129,13 +1129,14 @@ def make_TF_gif(neuron_model, df_data, std_data, poly_params_2, params_SI, alpha
         
         # --- convert fig to image ---
         fig.canvas.draw()
-        image = np.frombuffer(fig.canvas.tostring_rgb(), dtype='uint8')
-        image = image.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+        image = np.frombuffer(fig.canvas.buffer_rgba(), dtype='uint8')
+        image = image.reshape(fig.canvas.get_width_height()[::-1] + (4,))[:, :, :3]
         frames.append(image)
 
         plt.close(fig)  # to clean memory
         
     # --- write GIF ---
+    os.makedirs(os.path.dirname(gif_name), exist_ok=True)
     gif = imageio.mimsave(gif_name, frames, fps=2.5, loop=0, palettesize=256)
 
     print(f"GIF saved as {gif_name}")
