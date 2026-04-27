@@ -2,6 +2,24 @@
 name = "ntmf"
 version = "0.1.0"
 description = "Bridging Scales: From Single Neurons to Mean-Field Model"
+requires-python = ">=3.12"
+dependencies = [
+    "brian2>=2.10",
+    "numpy",
+    "scipy",
+    "pandas",
+    "h5py",
+    "matplotlib",
+    "seaborn",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "nbconvert",
+    "nbclient",
+]
 
 [tool.setuptools.packages.find]
 include = ["ntmf*"]
