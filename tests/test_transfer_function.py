@@ -331,3 +331,67 @@ class TestGetMeanErrorDistribution:
         )
         assert len(distr) == 3
         assert np.all(np.isfinite(distr))
+
+    def test_new_positional_5args(self, synthetic_RS_tf_data, params_RS_with_K, RS_MF_params):
+        """Preferred new 5-arg positional call."""
+        best = RS_MF_params[0]
+        poly = np.array(best["polynomial_params"])
+        alpha = best["alpha"]
+        unique_inh = np.array([0.0, 10.0])
+        distr = get_mean_error_distribution(
+            synthetic_RS_tf_data, poly, params_RS_with_K, alpha, unique_inh,
+        )
+        assert len(distr) == 2
+        assert np.all(np.isfinite(distr))
+
+    def test_bad_df_data_raises(self, params_RS_with_K, RS_MF_params):
+        """Passing a non-DataFrame for df_data must raise TypeError."""
+        best = RS_MF_params[0]
+        poly = np.array(best["polynomial_params"])
+        alpha = best["alpha"]
+        unique_inh = np.array([0.0, 10.0])
+        with pytest.raises(TypeError, match="Expected df_data to be a DataFrame"):
+            get_mean_error_distribution(
+                None, poly, params_RS_with_K, alpha, unique_inh,
+            )
+
+    def test_old_positional_6args(self, synthetic_RS_tf_data, params_RS_with_K, RS_MF_params):
+        """Backward-compat: old 6-arg positional call with ignored neuron_model."""
+        best = RS_MF_params[0]
+        poly = np.array(best["polynomial_params"])
+        alpha = best["alpha"]
+        unique_inh = np.array([0.0, 10.0])
+        distr = get_mean_error_distribution(
+            "RS", synthetic_RS_tf_data, poly, params_RS_with_K, alpha, unique_inh,
+        )
+        assert len(distr) == 2
+        assert np.all(np.isfinite(distr))
+
+    def test_old_positional_7args(self, synthetic_RS_tf_data, params_RS_with_K, RS_MF_params):
+        """Backward-compat: old 7-arg positional call with ignored neuron_model and alpha_idx."""
+        best = RS_MF_params[0]
+        poly = np.array(best["polynomial_params"])
+        alpha = best["alpha"]
+        unique_inh = np.array([0.0, 10.0])
+        distr = get_mean_error_distribution(
+            "RS", synthetic_RS_tf_data, poly, params_RS_with_K, alpha, unique_inh, 0,
+        )
+        assert len(distr) == 2
+        assert np.all(np.isfinite(distr))
+
+    def test_keyword_alpha_idx(self, synthetic_RS_tf_data, params_RS_with_K, RS_MF_params):
+        """Backward-compat: keyword-only call with alpha_idx passed."""
+        best = RS_MF_params[0]
+        poly = np.array(best["polynomial_params"])
+        alpha = best["alpha"]
+        unique_inh = np.array([0.0, 10.0])
+        distr = get_mean_error_distribution(
+            df_data=synthetic_RS_tf_data,
+            poly_params_2=poly,
+            params_SI=params_RS_with_K,
+            alpha=alpha,
+            unique_inh=unique_inh,
+            alpha_idx=0,
+        )
+        assert len(distr) == 2
+        assert np.all(np.isfinite(distr))

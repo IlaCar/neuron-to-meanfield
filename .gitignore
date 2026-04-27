@@ -42,3 +42,5 @@ _rewrite_notebooks.py
 
 # Generated images from validation
 MF_vs_NN_comparison.png
+notebook_report.json
+notebook_report.md

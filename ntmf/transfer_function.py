@@ -335,8 +335,6 @@ def get_mean_error_distribution(
         params_SI = kwargs.pop("params_SI")
         alpha = kwargs.pop("alpha")
         unique_inh = kwargs.pop("unique_inh")
-        if alpha_idx is None and "alpha_idx" in kwargs:
-            alpha_idx = kwargs.pop("alpha_idx")
 
     if not isinstance(df_data, pd.DataFrame):
         raise TypeError(f"Expected df_data to be a DataFrame, got {type(df_data)}")
