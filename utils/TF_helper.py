@@ -7,6 +7,10 @@ import json
 import seaborn as sns
 import scipy.special as sp_spec
 import warnings
+from scipy.integrate import solve_ivp
+from scipy.interpolate import interp1d
+
+# ---------------------------------------------------
 
 implemented_neuron_models = ['FS', 'RS', 'RS_no_adapt']
 
@@ -71,7 +75,7 @@ def adding_K_params(neuron_params = None, network_config = None):
     return neuron_params
 
 # ---------------------------------------------------
-def membrane_potential_fluctuations(neuron_model = None, data = None, params = None):
+def membrane_potential_fluctuations(neuron_model = None, data = None, params = None, w_ad = None):
     """
     This function computes the mean, standard deviation and autocorrelation time constant
     of the membrane potential fluctuations as defined in
@@ -87,8 +91,12 @@ def membrane_potential_fluctuations(neuron_model = None, data = None, params = N
     f_e = np.maximum(f_e, 1e-9)
     f_i = np.maximum(f_i, 1e-9)    
     
-    w_ad = np.zeros(len(f_i))
-
+    # w_ad can be passed, if not, by default is set to an array of zeros
+    if w_ad is None:
+        w_ad = np.zeros(len(f_i))
+    else:
+        w_ad = np.asarray(w_ad)
+        
     ### eq. 5 in Zerlaut et al., (2018)
     mu_Ge = f_e * params['K_e'] * params['tau_syn'] * params['Q_e']
     sig_Ge = np.sqrt(0.5 * f_e * params['K_e'] * params['tau_syn']) * params['Q_e']
@@ -308,7 +316,8 @@ def TF_template(neuron_model = None,
                 data = None,
                 params = None,
                 poly_params = None,
-                alpha = None):
+                alpha = None,
+                w_ad = None):
 
     # compute mu_V, sig_V, tau_V (tau_V in seconds), tau_V_norm
     mu_V, sig_V, tau_V, tau_V_norm = membrane_potential_fluctuations(neuron_model = neuron_model, data=data, params=params)
@@ -372,8 +381,7 @@ def TF_template_sim(neuron_model = None,
     z = (eff_V_th - mu_V) / (np.sqrt(2.0) * sig_V_safe)
     F_out_th = alpha * sp_spec.erfc(z) / (2.0 * tau_V_safe)
 
-    return max(F_out_th, 0.0)
-    #return max(F_out_th, 0.0), mu_v # when adaptation !=0, work in progress
+    return max(F_out_th, 0.0), mu_v
 
 # -------------------- #
 def get_mean_error_distribution(neuron_model, df_data, poly_params_2, params_SI, alpha, unique_inh, alpha_idx = None):
@@ -399,3 +407,431 @@ def get_mean_error_distribution(neuron_model, df_data, poly_params_2, params_SI,
         idx += 1
                     
     return distr_mean_error
+
+# ---------------------------------------------------
+def simulate_MF_FS_RS(time=None,
+                      neuron_models=None,
+                      params=None, 
+                      poly_params=None,
+                      alphas=None,
+                      network_config=None,
+                      driving_input=None):
+    """
+    Simulate a 2-population mean-field network (FS, RS)
+    """
+
+    dt = time[1] - time[0]
+    n_steps = len(time)
+    pops = neuron_models
+
+    # Initialize firing rates
+    rates = {pop: np.zeros(n_steps) for pop in pops}
+    rates['FS'][0] = 0
+    rates['RS'][0] = 0
+    tau_f = 0.01  # 10 ms population time constant
+
+    # --- network structure ---
+    N_FS = network_config['network_composition']['FS_neuron']
+    N_RS = network_config['network_composition']['RS_neuron']
+
+    p_ext = network_config['external_input']['conn_prob']
+    N_exc = network_config['external_input']['N_external_exc']
+    N_inh = network_config['external_input']['N_external_inh']
+    K_ext_exc = N_exc * p_ext   # 400
+    K_ext_inh = N_inh * p_ext   # 100
+
+    p = network_config['network_composition']['conn_prob']
+    K_RS_to_RS = int(p * N_RS)  # 400
+    K_RS_to_FS = int(p * N_RS)  # 400
+    K_FS_to_RS = int(p * N_FS)  # 100
+    K_FS_to_FS = int(p * N_FS)  # 100
+
+    K_ref_exc = K_RS_to_RS
+    K_ref_inh = K_FS_to_FS
+    
+    # --- quantal conductances ---
+    # - external inputs -
+    Qe_ext = network_config['external_input']['Q_e']* 10**-9   # nS * e-9-> S
+    Qi_ext = network_config['external_input']['Q_i']* 10**-9   # nS * e-9-> S
+  
+    # - RS quantal conductances -
+    Qe_RS_RS = params['RS']['Q_e']  
+    Qe_RS_FS = params['FS']['Q_e'] 
+    
+    # - FS quantal conductances -
+    Qi_FS_FS = params['FS']['Q_i']  # S 
+    Qi_FS_RS = params['RS']['Q_i']
+
+    Qe_RS_ref_exc = Qe_RS_RS
+    Qi_RS_ref_inh = Qi_FS_RS
+    
+    Qe_FS_ref_exc = Qe_RS_FS
+    Qi_FS_ref_inh = Qi_FS_FS
+    
+    # Loop over time
+    for t in range(1, n_steps):
+        current_rates = {pop: rates[pop][t-1] for pop in pops}
+
+        # external drives
+        nu_ext_exc_FS = driving_input['excitatory']['FS'][t]
+        nu_ext_exc_RS = driving_input['excitatory']['RS'][t]
+        nu_ext_inh_FS = driving_input['inhibitory']['FS'][t]
+        nu_ext_inh_RS = driving_input['inhibitory']['RS'][t]
+        
+        # --- effective excitatory and inhibitory rates ---
+        nu_eff_exc_RS = (
+            K_ext_exc * Qe_ext * nu_ext_exc_RS +
+            K_RS_to_RS * Qe_RS_RS * current_rates['RS']
+        ) / (K_ref_exc * Qe_RS_ref_exc)
+        
+        ## TO DO !!! ##
+        #it is important to notice that in case tau_ext != tau_e != tau_ref then they need to be written
+        ''' 
+        nu_eff_exc_RS = (
+            K_ext_exc * Qe_ext * tau_ext * nu_ext_exc_RS +
+            K_RS_to_RS * Qe_RS_RS * tau_e * current_rates['RS']
+        ) / (K_ref_exc * Qe * tau_ref)
+        '''
+        
+        nu_eff_inh_RS = (
+            K_ext_inh * Qi_ext * nu_ext_inh_RS +
+            K_FS_to_RS * Qi_FS_RS * current_rates['FS']
+        ) / (K_ref_inh * Qi_RS_ref_inh)
+
+        nu_eff_exc_FS = (
+            K_ext_exc * Qe_ext * nu_ext_exc_FS +
+            K_RS_to_FS * Qe_RS_FS * current_rates['RS']
+        ) / (K_ref_exc * Qe_FS_ref_exc)
+
+        nu_eff_inh_FS = (
+            K_ext_inh * Qi_ext * nu_ext_inh_FS +
+            K_FS_to_FS * Qi_FS_FS * current_rates['FS']
+        ) / (K_ref_inh * Qi_FS_ref_inh)
+
+        # --- evaluate transfer functions ---
+        F_RS, mu_RS = TF_template_sim(
+            neuron_model='RS',
+            f_e=nu_eff_exc_RS,
+            f_i=nu_eff_inh_RS,
+            params=params['RS'],
+            poly_params=poly_params['RS'],
+            alpha=alphas['RS'],
+            w_ad=0.0
+        )
+
+        F_FS, mu_FS = TF_template_sim(
+            neuron_model='FS',
+            f_e=nu_eff_exc_FS,
+            f_i=nu_eff_inh_FS,
+            params=params['FS'],
+            poly_params=poly_params['FS'],
+            alpha=alphas['FS'],
+            w_ad=0.0
+        )
+
+        # --- integrate rate dynamics ---
+        rates['RS'][t] = rates['RS'][t-1] + dt / tau_f * (F_RS - rates['RS'][t-1])
+        rates['FS'][t] = rates['FS'][t-1] + dt / tau_f * (F_FS - rates['FS'][t-1])
+
+    return rates
+
+# ---------------------------------------------------
+def simulate_MF_FS_RS_solve_ivp(time=None,
+                      neuron_models=None,
+                      params=None, 
+                      poly_params=None,
+                      alphas=None,
+                      network_config=None,
+                      driving_input=None):
+    """
+    Simulate a 2-population mean-field network (FS, RS) using SciPy's solve_ivp.
+    """
+    
+    tau_f = 0.01  # 10 ms population time constant
+
+    # --- network structure ---
+    N_FS = network_config['network_composition']['FS_neuron']
+    N_RS = network_config['network_composition']['RS_neuron']
+
+    p_ext = network_config['external_input']['conn_prob']
+    N_exc = network_config['external_input']['N_external_exc']
+    N_inh = network_config['external_input']['N_external_inh']
+    K_ext_exc = N_exc * p_ext
+    K_ext_inh = N_inh * p_ext
+
+    p = network_config['network_composition']['conn_prob']
+    K_RS_to_RS = int(p * N_RS)
+    K_RS_to_FS = int(p * N_RS)
+    K_FS_to_RS = int(p * N_FS)
+    K_FS_to_FS = int(p * N_FS)
+
+    K_ref_exc = K_RS_to_RS
+    K_ref_inh = K_FS_to_FS
+    
+    # --- quantal conductances ---
+    Qe_ext = network_config['external_input']['Q_e'] * 10**-9  # nS to S
+    Qi_ext = network_config['external_input']['Q_i'] * 10**-9  # nS to S
+  
+    # Using the passed 'params' dict instead of global variables
+    Qe_RS_RS = params['RS']['Q_e']  
+    Qe_RS_FS = params['FS']['Q_e'] 
+    Qi_FS_FS = params['FS']['Q_i']  
+    Qi_FS_RS = params['RS']['Q_i']
+
+    Qe_RS_ref_exc = Qe_RS_RS
+    Qi_RS_ref_inh = Qi_FS_RS
+    
+    Qe_FS_ref_exc = Qe_RS_FS
+    Qi_FS_ref_inh = Qi_FS_FS
+
+    # --- Setup Continuous Driving Inputs ---
+    # solve_ivp evaluates at arbitrary time points, so we interpolate the discrete driving inputs.
+    drive_exc_FS = interp1d(time, driving_input['excitatory']['FS'], bounds_error=False, fill_value="extrapolate")
+    drive_exc_RS = interp1d(time, driving_input['excitatory']['RS'], bounds_error=False, fill_value="extrapolate")
+    drive_inh_FS = interp1d(time, driving_input['inhibitory']['FS'], bounds_error=False, fill_value="extrapolate")
+    drive_inh_RS = interp1d(time, driving_input['inhibitory']['RS'], bounds_error=False, fill_value="extrapolate")
+
+    # --- Define the ODE system ---
+    def mean_field_derivatives(t, y):
+        # y state vector: [rate_RS, rate_FS]
+        rate_RS, rate_FS = y
+
+        # Interpolate external drives at current integration time 't'
+        nu_ext_exc_FS = drive_exc_FS(t)
+        nu_ext_exc_RS = drive_exc_RS(t)
+        nu_ext_inh_FS = drive_inh_FS(t)
+        nu_ext_inh_RS = drive_inh_RS(t)
+        
+        # Effective rates
+        nu_eff_exc_RS = (
+            K_ext_exc * Qe_ext * nu_ext_exc_RS +
+            K_RS_to_RS * Qe_RS_RS * rate_RS
+        ) / (K_ref_exc * Qe_RS_ref_exc)
+        
+        nu_eff_inh_RS = (
+            K_ext_inh * Qi_ext * nu_ext_inh_RS +
+            K_FS_to_RS * Qi_FS_RS * rate_FS
+        ) / (K_ref_inh * Qi_RS_ref_inh)
+
+        nu_eff_exc_FS = (
+            K_ext_exc * Qe_ext * nu_ext_exc_FS +
+            K_RS_to_FS * Qe_RS_FS * rate_RS
+        ) / (K_ref_exc * Qe_FS_ref_exc)
+
+        nu_eff_inh_FS = (
+            K_ext_inh * Qi_ext * nu_ext_inh_FS +
+            K_FS_to_FS * Qi_FS_FS * rate_FS
+        ) / (K_ref_inh * Qi_FS_ref_inh)
+
+        # Transfer functions
+        F_RS, mu_RS = TF_template_sim(
+            neuron_model='RS', f_e=nu_eff_exc_RS, f_i=nu_eff_inh_RS,
+            params=params['RS'], poly_params=poly_params['RS'],
+            alpha=alphas['RS'], w_ad=0.0
+        )
+
+        F_FS, mu_FS = TF_template_sim(
+            neuron_model='FS', f_e=nu_eff_exc_FS, f_i=nu_eff_inh_FS,
+            params=params['FS'], poly_params=poly_params['FS'],
+            alpha=alphas['FS'], w_ad=0.0
+        )
+
+        # Calculate derivatives (d/dt)
+        dRS_dt = (F_RS - rate_RS) / tau_f
+        dFS_dt = (F_FS - rate_FS) / tau_f
+
+        return [dRS_dt, dFS_dt]
+
+    # --- Integrate ---
+    # Initial conditions: [RS_init, FS_init]
+    y0 = [0.0, 0.0] 
+    
+    # solve_ivp handles the time stepping automatically
+    solution = solve_ivp(
+        fun=mean_field_derivatives,
+        t_span=(time[0], time[-1]),
+        y0=y0,
+        t_eval=time,         # Forces the solver to output results exactly matching the time array
+        method='RK45'        # Standard Runge-Kutta. Switch to 'LSODA' if the system becomes stiff
+    )
+
+    # --- Format Output ---
+    # Reconstruct the rates dictionary
+    rates = {
+        'RS': solution.y[0],
+        'FS': solution.y[1]
+    }
+
+    return rates
+
+# ---------------------------------------------------
+def generate_ou_process(time, dt, mu, tau, sigma, x0=None):
+    x = np.zeros_like(time)
+    x[0] = x0 if x0 is not None else mu
+    np.random.seed(0)
+    
+    # Pre-generate Gaussian noise for efficiency
+    noise = np.random.normal(0, 1, len(time))
+    
+    for i in range(1, len(time)):
+        dx = ((mu - x[i-1]) / tau) * dt + sigma * np.sqrt(dt) * noise[i]
+        x[i] = x[i-1] + dx
+        
+    # Rectify to prevent negative firing rates
+    return np.maximum(0, x)
+   
+# ---------------------------------------------------
+def simulate_MF_FS_RS_adapt_solve_ivp(time=None,
+                      neuron_models=None,
+                      params=None, 
+                      poly_params=None,
+                      alphas=None,
+                      network_config=None,
+                      driving_input=None):
+    """
+    Simulate a 2-population mean-field network (FS, RS) using SciPy's solve_ivp,
+    including the dynamics of the adaptation variable (w_ad).
+    """
+    
+    tau_f = 0.01  # 10 ms population time constant
+
+    # --- network structure ---
+    N_FS = network_config['network_composition']['FS_neuron']
+    N_RS = network_config['network_composition']['RS_neuron']
+
+    p_ext = network_config['external_input']['conn_prob']
+    N_exc = network_config['external_input']['N_external_exc']
+    N_inh = network_config['external_input']['N_external_inh']
+    K_ext_exc = N_exc * p_ext
+    K_ext_inh = N_inh * p_ext
+
+    p = network_config['network_composition']['conn_prob']
+    K_RS_to_RS = int(p * N_RS)
+    K_RS_to_FS = int(p * N_RS)
+    K_FS_to_RS = int(p * N_FS)
+    K_FS_to_FS = int(p * N_FS)
+
+    K_ref_exc = K_RS_to_RS
+    K_ref_inh = K_FS_to_FS
+    
+    # --- quantal conductances ---
+    Qe_ext = network_config['external_input']['Q_e'] * 10**-9
+    Qi_ext = network_config['external_input']['Q_i'] * 10**-9
+  
+    Qe_RS_RS = params['RS']['Q_e']  
+    Qe_RS_FS = params['FS']['Q_e'] 
+    Qi_FS_FS = params['FS']['Q_i']  
+    Qi_FS_RS = params['RS']['Q_i']
+
+    Qe_RS_ref_exc = Qe_RS_RS
+    Qi_RS_ref_inh = Qi_FS_RS
+    
+    Qe_FS_ref_exc = Qe_RS_FS
+    Qi_FS_ref_inh = Qi_FS_FS
+
+    # --- Setup Continuous Driving Inputs ---
+    drive_exc_FS = interp1d(time, driving_input['excitatory']['FS'], bounds_error=False, fill_value="extrapolate")
+    drive_exc_RS = interp1d(time, driving_input['excitatory']['RS'], bounds_error=False, fill_value="extrapolate")
+    drive_inh_FS = interp1d(time, driving_input['inhibitory']['FS'], bounds_error=False, fill_value="extrapolate")
+    drive_inh_RS = interp1d(time, driving_input['inhibitory']['RS'], bounds_error=False, fill_value="extrapolate")
+
+    # --- Define the ODE system ---
+    def mean_field_derivatives(t, y):
+        # y state vector: [rate_RS, rate_FS, w_RS, w_FS]
+        rate_RS, rate_FS, w_RS, w_FS = y
+
+        # Interpolate external drives at current integration time 't'
+        nu_ext_exc_FS = drive_exc_FS(t)
+        nu_ext_exc_RS = drive_exc_RS(t)
+        nu_ext_inh_FS = drive_inh_FS(t)
+        nu_ext_inh_RS = drive_inh_RS(t)
+        
+        # Effective rates
+        nu_eff_exc_RS = (
+            K_ext_exc * Qe_ext * nu_ext_exc_RS +
+            K_RS_to_RS * Qe_RS_RS * rate_RS
+        ) / (K_ref_exc * Qe_RS_ref_exc)
+        
+        nu_eff_inh_RS = (
+            K_ext_inh * Qi_ext * nu_ext_inh_RS +
+            K_FS_to_RS * Qi_FS_RS * rate_FS
+        ) / (K_ref_inh * Qi_RS_ref_inh)
+
+        nu_eff_exc_FS = (
+            K_ext_exc * Qe_ext * nu_ext_exc_FS +
+            K_RS_to_FS * Qe_RS_FS * rate_RS
+        ) / (K_ref_exc * Qe_FS_ref_exc)
+
+        nu_eff_inh_FS = (
+            K_ext_inh * Qi_ext * nu_ext_inh_FS +
+            K_FS_to_FS * Qi_FS_FS * rate_FS
+        ) / (K_ref_inh * Qi_FS_ref_inh)
+
+        # Transfer functions (Pass the current adaptation state w_RS / w_FS)
+        ### adding mu_RS
+        F_RS, mu_RS = TF_template_sim(
+            neuron_model='RS', f_e=nu_eff_exc_RS, f_i=nu_eff_inh_RS,
+            params=params['RS'], poly_params=poly_params['RS'],
+            alpha=alphas['RS'], w_ad=w_RS
+        )
+        ### adding mu_FS
+        F_FS, mu_FS = TF_template_sim(
+            neuron_model='FS', f_e=nu_eff_exc_FS, f_i=nu_eff_inh_FS,
+            params=params['FS'], poly_params=poly_params['FS'],
+            alpha=alphas['FS'], w_ad=w_FS
+        )
+
+        # 1. Rate derivatives (d/dt)
+        dRS_dt = (F_RS - rate_RS) / tau_f
+        dFS_dt = (F_FS - rate_FS) / tau_f
+
+        # 2. Adaptation derivatives (dW/dt = -W/tau_w + b * rate)
+        # We use .get() so it safely defaults to 0 if the cell type doesn't have adaptation parameters
+        tau_w_RS = params['RS'].get('tau_w', 1.0) # avoid div by zero, default tau to 1.0 if missing
+        b_RS = params['RS'].get('b', 0.0)
+        a_RS = params['RS'].get('a', 0.0)
+        E_L_RS = params['RS']['E_L']
+        
+        dW_RS_dt = (
+            -w_RS / tau_w_RS
+            + b_RS * rate_RS
+            + a_RS * (mu_RS - E_L_RS) / tau_w_RS
+        )
+                
+        tau_w_FS = params['FS'].get('tau_w', 1.0)
+        b_FS = params['FS'].get('b', 0.0)
+        a_FS = params['FS'].get('a', 0.0)
+        E_L_FS = params['FS']['E_L']
+        
+        dW_FS_dt = (
+            -w_FS / tau_w_FS
+            + b_FS * rate_FS
+            + a_FS * (mu_FS - E_L_FS) / tau_w_FS
+        )
+        return [dRS_dt, dFS_dt, dW_RS_dt, dW_FS_dt]
+
+    # --- Integrate ---
+    # Initial conditions: [RS_init, FS_init, W_RS_init, W_FS_init]
+    y0 = [0.0, 0.0, 0.0, 0.0] 
+    
+    solution = solve_ivp(
+        fun=mean_field_derivatives,
+        t_span=(time[0], time[-1]),
+        y0=y0,
+        t_eval=time,         
+        method='RK45'        
+    )
+
+    # --- Format Output ---
+    rates = {
+        'RS': solution.y[0],
+        'FS': solution.y[1]
+    }
+    
+    # Returning also the adaptation traces
+    adaptation = {
+        'RS': solution.y[2],
+        'FS': solution.y[3]
+    }
+
+    return rates, adaptation
