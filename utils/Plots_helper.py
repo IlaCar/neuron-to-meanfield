@@ -1327,5 +1327,81 @@ def plot_pca_biplot(neuron_model, params_name, X_pca, loadings, expl_var):
 
     return fig
 
+# -------------------- #
+# Helper for pivoting
+def get_pivot(df, val):
+    return df.pivot_table(index='inh', columns='exc', values=val)
+
+# -------------------- #
+def plot_heatmap_simulation(neuron_model, model, df_data, annotate = False):
+
+    fig = plt.figure(figsize=(8, 6))
+    
+    ax = sns.heatmap(df_data, 
+                     annot = annotate, 
+                     fmt=".1f", 
+                     cmap="viridis", 
+                     cbar_kws={'label': 'Output Freq (Hz)'})
+    ax.invert_yaxis()
+    
+    plt.xlabel('Input Freq Exc Syn (Hz)')
+    plt.ylabel('Input Freq Inh Syn (Hz)')
+    plt.title(f'{neuron_model} {model} Results')
+       
+    return fig
+
+# -------------------- #
+def plot_heatmap_diff_simulation(neuron_model, df_data, annotate = False):
+
+    fig = plt.figure(figsize=(8, 6))
+    
+    ax = sns.heatmap(df_data, 
+                     annot = annotate, 
+                     fmt=".1f", 
+                     cmap="RdBu_r", 
+                     center=0,
+                     cbar_kws={'label': 'Output Freq (Hz)'})
+    ax.invert_yaxis()
+    
+    plt.xlabel('Input Freq Exc Syn (Hz)')
+    plt.ylabel('Input Freq Inh Syn (Hz)')
+    plt.title(f'{neuron_model} Diff (MF-NN) Results')
+       
+    return fig
+
+# -------------------- #
+def plot_heatmap_z_score(neuron_model, df_data, annotate = False):
+
+    fig = plt.figure(figsize=(8, 6))
+    ax = sns.heatmap(df_data,
+                annot=False,
+                fmt=".1f",
+                cmap="RdBu_r",
+                center=0,
+                cbar_kws={'label': 'Z-score'},
+                vmin = -2,
+                vmax = +2
+                )
+    ax.invert_yaxis()
+    
+    plt.xlabel('Input Freq Exc Syn (Hz)')
+    plt.ylabel('Input Freq Inh Syn (Hz)')    
+    plt.title(f'Z-score: {neuron_model} (MF-NN) / NN_std')
+       
+    return fig
+
+# -------------------- #
+def plot_mismatch_heatmap(neuron_model, df_data, annotate = False):
+
+    fig = plt.figure(figsize=(8, 6))
+    ax = sns.heatmap(df_data,
+            cmap="YlOrRd")
+    ax.invert_yaxis()
+    
+    plt.xlabel('Input Freq Exc Syn (Hz)')
+    plt.ylabel('Input Freq Inh Syn (Hz)')    
+    plt.title(f'{neuron_model} --> Significant Mismatch (MF > 2 sigma from NN)')
+       
+    return fig
 
 
