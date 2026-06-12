@@ -18,7 +18,10 @@ import brian2 as b2
 color_palette = {"FS": '#cb181d',           # red
                  "RS": '#238b45',           # green
                  "RS_no_adapt": '#2171b5',  # blue
-                 "input": '#9ecae1'}        # light blue
+                 "input": '#9ecae1',        # light blue
+                 "GoC": "#2171b5",          # blue
+                 "current": "#737373"       # grey
+                }        
 
 syn_colors = {
     "E": "#3d9a8e",     # teal
@@ -1338,8 +1341,7 @@ def plot_pca_biplot(neuron_model, params_name, X_pca, loadings, expl_var):
 
     return fig
 
-
-
+# -------------------- #
 def plot_membrane_potential_fluctuations(data=None, mu_V=None, sig_V=None, tau_V=None):
     """Visualize membrane potential fluctuations as a 4-panel heatmap.
 
@@ -1388,5 +1390,38 @@ def plot_membrane_potential_fluctuations(data=None, mu_V=None, sig_V=None, tau_V
     plt.tight_layout(h_pad=1.5)
     return fig
 
+#-------------------------------------------------------------------
+def plotting_state_monitor_variables(mon = None, neuron_model = None, pretty_plot = False, V_min=None,
+                                     syn = None):
 
+    fig, ax = plt.subplots(5, 1, figsize=(8, 10), sharex=True)
+
+    ax[0].plot(mon.t / b2.ms, mon.V[0] / b2.mV, color=color_palette[neuron_model])
+    ax[0].set_ylabel('Membrane potential (mV)')
+    if syn == None:
+        ax[0].set_title(f'{neuron_model.split("_")[0]} membrane potential response to current injection')
+    else:
+        ax[0].set_title(f'{neuron_model.split("_")[0]} membrane potential response to synaptic activation')
+    
+    ax[1].plot(mon.t / b2.ms, mon.Is[0] / b2.nA, color=color_palette['current'])
+    ax[1].set_ylabel('Current (nA)')
+    ax[1].set_title('Injected current (nA)')
+    
+    ax[2].plot(mon.t / b2.ms, mon.Ia[0] / b2.nA, color=color_palette['current'])
+    ax[2].set_ylabel('Current (nA)')
+    ax[2].set_title('Adaptive current (nA)')
+    
+    ax[3].plot(mon.t / b2.ms, mon.Id[0] / b2.nA, color=color_palette['current'])
+    ax[3].set_ylabel('Current (nA)')
+    ax[3].set_title('Depolarizing spike-triggered current (nA)')
+    
+    ax[4].plot(mon.t / b2.ms, mon.Ie[0] / b2.nA, color=color_palette['current'])
+    ax[4].set_ylabel('Current (nA)')
+    ax[4].set_title('Endogenous current (nA)')
+    ax[4].set_xlabel('Time (ms)')
+    
+    plt.tight_layout()
+    #ax[0].legend()
+
+    return ax, fig
 
