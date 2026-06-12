@@ -1,0 +1,77 @@
+[
+    [
+        {
+            "metainfo": "GoC configuration from https://github.com/RobertaMLo/CRBL_MF",
+            "model": {
+                "C_m": 145,
+                "g_L": 3.29,
+                "E_L": -62,
+                "V_th": -55,
+                "V_reset": -75,
+                "V_spike": 20,
+                "V_min": -150,
+                "delta_V": 0.4,
+                "tau_V": 0.4,
+                "lambda_0": 1.0,
+                "t_ref": 2,
+                "k_a": 0.000000217,
+                "k_2": 0.023,
+                "k_1": 0.031,
+                "A_2": 178.01,
+                "A_1": 259.988,
+                "I_e": 0.01621,
+                "E_e": 0,
+                "K_e": 614.15,
+                "T_e": 1.25,
+                "Q_e": 0.437,
+                "delay_e": 2,
+                "E_e_m": 0,
+                "K_e_m": 35,
+                "T_e_m": 5,
+                "Q_e_m": 0.24,
+                "delay_e_m": 1,
+                "E_i": -80,
+                "K_i": 16.2,
+                "T_i": 5,
+                "Q_i": 1.12,
+                "delay_i": 4
+            },
+            "init": {
+                "V": -62,
+                "I_d": 0,
+                "I_a": 0
+            },
+            "units": {
+                "C_m": "pF",
+                "g_L": "nS",
+                "E_L": "mV",
+                "V_th": "mV",
+                "V_reset": "mV",
+                "V_spike": "mV",
+                "V_min": "mV",
+                "delta_V": "mV",
+                "tau_V": "mV",
+                "lambda_0": "Hz",
+                "t_ref": "ms",
+                "k_a": "1/H",
+                "k_2": "/ ms",
+                "k_1": "/ ms",
+                "A_2": "pA",
+                "A_1": "pA",
+                "I_e": "nA",
+                "E_e": "mV",
+                "E_i": "mV",
+                "Q_i": "nS",
+                "Q_e": "nS",
+                "K_i": "dimensionless",
+                "K_e": "dimensionless",
+                "T_e": "ms",
+                "T_i": "ms",
+                "delay_e": "ms",
+                "delay_m": "ms",
+                "delay_i": "ms"
+
+            }
+        }
+    ]
+]
