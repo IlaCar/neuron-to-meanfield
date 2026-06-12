@@ -16,6 +16,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+widget = [
+    "anywidget>=0.9.0",
+    "traitlets>=5.0",
+    "sympy",
+]
 dev = [
     "pytest",
     "pytest-cov",
@@ -27,6 +32,9 @@ dev = [
 
 [tool.setuptools.packages.find]
 include = ["ntmf*"]
+
+[tool.setuptools.package-data]
+"ntmf.phase_plane_widget.static" = ["*.js", "*.css"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
