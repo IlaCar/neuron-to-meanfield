@@ -13,7 +13,7 @@ import h5py
 import numpy as np
 
 
-IMPLEMENTED_NEURON_MODELS = ["FS", "RS", "RS_no_adapt"]
+IMPLEMENTED_NEURON_MODELS = ["FS", "RS", "RS_no_adapt", "GoC"]
 
 
 # ---------------------------------------------------------------------------
