@@ -1,0 +1,10 @@
+input_region,species,condition,publication,file_name,Temperature (Celsius),holding_voltage (mV),voltage_peak (mV),voltage_threshold (mV),reset_voltage (mV),holding_current (pA),"current_injection_protocol ([ms],[pA])",comments
+cortex,human,control,"McCormick and Williamson., 1989",McCormickWilliamson1989_fig1A.csv,35±1,-60,17,~ -44,~ -51,0,"[0, 33, 333, 400], [0, 800, 0]",
+cortex,human,control,"McCormick and Williamson., 1989",McCormickWilliamson1989_fig1B.csv,35±1,-60,17,~ -44,~ -51,0,"[0, 33, 333, 400], [0, 800, 0]",
+cortex,human,control,"McCormick and Williamson., 1989",McCormickWilliamson1989_fig1D.csv,35±1,-60,17,~ -44,~ -51,0,"[0, 33, 333, 400], [0, 800, 0]",
+cortex,human,histamine,"McCormick and Williamson., 1989",McCormickWilliamson1989_fig1_HT.csv,35±1,-60,11,~ -44,~ -49.5,0,"[0, 37, 330, 400], [0, 800, 0]",
+cortex,human,methacoline,"McCormick and Williamson., 1989",McCormickWilliamson1989_fig1_MCh.csv ,35±1,-60,15.5,~ -44,~ -52,0,"[0, 37, 335, 400], [0, 800, 0]",
+cortex,human,norepinephrine,"McCormick and Williamson., 1989",McCormickWilliamson1989_fig1_NA.csv,35±1,-60,11,~ -45,~ -57,0,"[0, 33, 345, 400], [0, 800, 0]",
+cortex,human,serotonin,"McCormick and Williamson., 1989",McCormickWilliamson1989_fig1_5HT.csv,35±1,-60,11,~ -44,~ -52,0,"[0, 33, 330, 400], [0, 800, 0]",
+cortex,rat,control,"Onn et al., 2006",Onn2006_fig3a1.csv,31-32,-66,-7.5,~ -50,~ -51.5,0,"[0, 25, 80, 100], [0, 1400, 0]",
+cortex,rat,dopamine,"Onn et al., 2006",Onn2006_fig3a2_DA.csv,31-32,-67,-7.5,~ -46.5,~ -49.5,0,"[0, 25, 80, 100], [0, 1400, 0]",
