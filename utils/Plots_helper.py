@@ -125,6 +125,31 @@ def plotting_3_traces(neuron_model = None,
     return fig
 
 # -------------------- #
+def add_stim_spans(ax,
+                   exc_intervals=None,
+                   inh_intervals=None,
+                   input_interval=None,
+                   alpha=0.1,
+                   zorder=0,
+                   ):
+    """
+    Shade stimulus intervals as full-height spans behind a trace plot.
+    x in data units (time); spans the whole y-axis automatically.
+    """
+    def _draw(intervals, color):
+        if intervals is None:
+            return
+        for item in intervals:
+            t0, t1 = item[0], item[1]   # ignores any pop label
+            ax.axvspan(t0, t1, color=color, alpha=alpha, zorder=zorder)
+
+    _draw(exc_intervals, syn_colors['E'])
+    _draw(inh_intervals, syn_colors['I'])
+    _draw(input_interval, color_palette["input"])
+
+    return ax
+    
+# -------------------- #
 def add_input_boxes(ax,
                     exc_intervals = None,
                     inh_intervals = None,
