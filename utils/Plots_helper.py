@@ -15,17 +15,17 @@ import seaborn as sns
 import brian2 as b2
 
 # -------------------- #
-color_palette = {"FS": '#cb181d',           # red
-                 "RS": '#238b45',           # green
-                 "RS_no_adapt": '#2171b5',  # blue
+color_palette = {"FS": '#f46d43',           # orange
+                 "RS": '#225ea5',           # blue
+                 "RS_no_adapt": '#41b6c4',  # teal
                  "input": '#9ecae1',        # light blue
                  "GoC": "#2171b5",          # blue
                  "current": "#737373"       # grey
                 }        
 
 syn_colors = {
-    "E": "#3d9a8e",     # teal
-    "I": "#6a3d9a",     # purple
+    "E": "#006837",     # green
+    "I": "#a50026",     # red
     "Total": "#000000"  # black
 }
 # -------------------- #                 
@@ -48,25 +48,25 @@ def plotting_3_traces_per_population(pop1 = None,
 
     fig, ax = plt.subplots(3, 1, figsize=(10, 10), sharex=True)
     if pretty_plot == False:
-        ax[0].plot(pop1.t/b2.second, pop1.v[0] / b2.mV, color='#67000d')
-        ax[0].plot(pop1.t/b2.second, pop1.v[1] / b2.mV, color='#cb181d')
-        ax[0].plot(pop1.t/b2.second, pop1.v[2] / b2.mV, color='#fb6a4a')
+        ax[0].plot(pop1.t/b2.second, pop1.v[0] / b2.mV, color='#c2410c')
+        ax[0].plot(pop1.t/b2.second, pop1.v[1] / b2.mV, color='#f46d43')
+        ax[0].plot(pop1.t/b2.second, pop1.v[2] / b2.mV, color='#fdae61')
     else:
-        ax[0].plot(pop1.t/b2.second, get_pretty_voltage(pop1.v[0], -50) / b2.mV, '--', color='#67000d')
-        ax[0].plot(pop1.t/b2.second, get_pretty_voltage(pop1.v[1], -50) / b2.mV, '--', color='#cb181d')
-        ax[0].plot(pop1.t/b2.second, get_pretty_voltage(pop1.v[2], -50) / b2.mV, '--', color='#fb6a4a')  
+        ax[0].plot(pop1.t/b2.second, get_pretty_voltage(pop1.v[0], -50) / b2.mV, '--', color='#c2410c')
+        ax[0].plot(pop1.t/b2.second, get_pretty_voltage(pop1.v[1], -50) / b2.mV, '--', color='#f46d43')
+        ax[0].plot(pop1.t/b2.second, get_pretty_voltage(pop1.v[2], -50) / b2.mV, '--', color='#fdae61')  
     ax[0].set_title('Selected FS traces')
 
     if RS_adaptation == True:
         color_RS = color_palette['RS']
-        col_0 = '#00441b'
-        col_1 = '#238b45'
-        col_2 = '#74c476'
+        col_0 = '#08306b'
+        col_1 = '#225ea5'
+        col_2 = '#6baed6'
     else:
         color_RS = color_palette['RS_no_adapt']
-        col_0 = '#08306b'
-        col_1 = '#2171b5'
-        col_2 = '#6baed6'
+        col_0 = '#0e6e78'
+        col_1 = '#41b6c4'
+        col_2 = '#a6e1e6'
     
 
     if pretty_plot == False:    
@@ -103,11 +103,11 @@ def plotting_3_traces(neuron_model = None,
                       input_interval = None):
 
     if neuron_model == 'FS':
-        colors = ['#67000d', '#cb181d', '#fb6a4a']
+        colors = ['#c2410c', '#f46d43', '#fdae61']
     if neuron_model == 'RS':
-        colors = ['#00441b', '#238b45', '#74c476']
+        colors = ['#08306b', '#225ea5', '#6baed6']
     if neuron_model == 'RS_no_adapt':    
-        colors = ['#08306b', '#2171b5', '#6baed6']    
+        colors = ['#0e6e78', '#41b6c4', '#a6e1e6']    
     fig, ax = plt.subplots(figsize=(10, 6), sharex=True)
     ax.plot(pop.t/b2.second, pop.v[0] / b2.mV, color=colors[0])
     ax.plot(pop.t/b2.second, get_pretty_voltage(pop.v[0], -50) / b2.mV, '--', color=colors[0])
