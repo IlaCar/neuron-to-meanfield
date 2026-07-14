@@ -135,7 +135,7 @@ for i, ext_input_inh in enumerate(external_input_inh_range):
         mon_spike_RS = b2.SpikeMonitor(G_RS)
 
         #ids_extra_check = len(external_input_inh_range)
-        ids_extra_check = 10000
+        ids_extra_check = 10000 # to avoid extra recordings and plottings
         if n_sim % ids_extra_check == 0:
             ### adding extra monitors
             mon_RS = b2.StateMonitor(G_RS, ['v'], record=True)               
@@ -197,6 +197,6 @@ print(in_inh, in_exc, FREQ_avg.flatten(), FREQ_std.flatten())
 print('... Saving .dat files...')
 data = np.column_stack((in_inh, in_exc, FREQ_avg.flatten(), FREQ_std.flatten()))
 header = 'input_inh input_exc avg_f_out std_f_out'
-np.savetxt(os.path.join(simualtion_folder,'testing_TF_data_RS.dat'), data, fmt='%.1f', header=header, comments='')
+np.savetxt(os.path.join(simualtion_folder,'testing_TF_data_RS.dat'), data, fmt='%.2f', header=header, comments='')
 
 print('Done!')

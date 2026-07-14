@@ -23,7 +23,7 @@ b2.start_scope()
 b2.seed(12345)
 
 # Defining duration of the stimulation
-sim_duration = 7 * b2.second
+sim_duration = 6 * b2.second
 dt = 0.1 * b2.ms  # time resolution
 times = b2.arange(0, sim_duration, dt)
 
@@ -65,7 +65,7 @@ external_input_exc_range = np.arange(0, 30.5, step_freq_exc) #Hz
 
 # Two seconds stimulation
 p_start = 2 * b2.second
-p_end = 5 * b2.second
+p_end = 4 * b2.second
 delay = 0 * b2.second
 
 input_interval = [(p_start / b2.second, p_end / b2.second)]
@@ -135,7 +135,7 @@ for i, ext_input_inh in enumerate(external_input_inh_range):
         mon_spike_RS = b2.SpikeMonitor(G_RS)
 
         #ids_extra_check = len(external_input_inh_range)
-        ids_extra_check = 10000
+        ids_extra_check = 10000 # to avoid extra recordings and plottings
         if n_sim % ids_extra_check == 0:
             ### adding extra monitors
             mon_RS = b2.StateMonitor(G_RS, ['v'], record=True)               
@@ -195,6 +195,6 @@ print(f'Simulations completed!')
 print('... Saving .dat files...')
 data = np.column_stack((in_inh, in_exc, FREQ_avg.flatten(), FREQ_std.flatten()))
 header = 'input_inh input_exc avg_f_out std_f_out'
-np.savetxt(os.path.join(simualtion_folder,'testing_TF_data_RS.dat'), data, fmt='%.1f', header=header, comments='')
+np.savetxt(os.path.join(simualtion_folder,'testing_TF_data_RS_no_adapt.dat'), data, fmt='%.2f', header=header, comments='')
 
 print('Done!')
