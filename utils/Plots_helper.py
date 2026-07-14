@@ -1017,7 +1017,7 @@ def plot_TF_fitting(neuron_model, df_data, mean_error):
     out_rate = df_data['avg_f_out'].to_numpy()
     fit_rate = df_data['fit_rate']
     ax.plot(inp_exc, out_rate, 'o', color= color_palette[neuron_model], label=f'{neuron_model} data')
-    ax.plot(inp_exc, fit_rate, 'kx', markersize=7, label='fit')
+    ax.plot(inp_exc, fit_rate, 'kx', markersize=7, alpha=0.3, label='fit')
     
     ax.text(0.5, 0.95, f'mean error: {mean_error:.2f} Hz', transform=ax.transAxes, ha='center')
     ax.legend()
@@ -1038,7 +1038,7 @@ def plot_TF_fitting_viridis(neuron_model, df_data, mean_error, unique_inh, color
         out_rate = df_data.loc[mask, 'avg_f_out'].to_numpy()
         fit_rate = df_data.loc[mask, 'fit_rate']
     
-        ax.plot(inp_exc, out_rate, 'o', color=c, alpha=0.5)
+        ax.plot(inp_exc, out_rate, 'o', color=c, alpha=0.25)
         ax.plot(inp_exc, fit_rate, 'x', color=c, markersize=7)
     ax.text(0.5, 0.95, f'mean error: {mean_error:.2f} Hz', transform=ax.transAxes, ha='center')    
     # colorbar
@@ -1112,57 +1112,60 @@ def plots_TF_distr_mean_error(neuron_model, inh_vals, mean_error,
     
 # -------------------- #
 def make_TF_gif(neuron_model, df_data, std_data, poly_params_2, params_SI, alpha, unique_inh, colors, gif_name, y_lim=None):
-
+ 
+    import io
     import imageio.v2 as imageio
     from ntmf.transfer_function import res_2_func
-
+ 
     frames = []
-
+ 
     idx = 0
     for fixed_inh, c in zip(unique_inh, colors):
         fig, ax = plt.subplots()
-
+ 
         ax.set_title(f'Transfer function of {neuron_model} cell')
         ax.set_ylabel('Output rate (Hz)')
         ax.set_xlabel('Excitatory input (Hz)')
-
+ 
         tol = 1e-6
         mask = np.isclose(df_data['input_inh'], fixed_inh, atol=tol)
-
+ 
         inp_exc = df_data.loc[mask, 'input_exc'].to_numpy()
         out_rate = df_data.loc[mask, 'avg_f_out'].to_numpy()
         fit_rate = df_data.loc[mask, 'fit_rate']
-
+ 
         mean_error = res_2_func(poly_params_2,
                                 data=df_data.loc[mask],
                                 params=params_SI,
                                 alpha=alpha)
-
+ 
         plt.errorbar(inp_exc, out_rate, std_data[idx], linestyle='None', color = c)
         ax.plot(inp_exc, out_rate, 'o', color=c, label=f'data (inh={fixed_inh} Hz)')
         ax.plot(inp_exc, fit_rate, 'kx', markersize=7, label='fit')
-
+ 
         ax.text(0.2, 0.95, f'mean error: {mean_error:.2f} Hz',
                 transform=ax.transAxes, ha='center')
-
+ 
         ax.legend(loc='lower right')
         ax.set_ylim(y_lim if y_lim else (-5, 100))
         idx += 1
         
         # --- convert fig to image ---
-        fig.canvas.draw()
-        image = np.frombuffer(fig.canvas.buffer_rgba(), dtype='uint8')
-        image = image.reshape(fig.canvas.get_width_height()[::-1] + (4,))[:, :, :3]
+        buf = io.BytesIO()
+        fig.savefig(buf, format='png', dpi=fig.dpi)
+        buf.seek(0)
+        image = imageio.imread(buf)[:, :, :3]
+        buf.close()
         frames.append(image)
-
+ 
         plt.close(fig)  # to clean memory
         
     # --- write GIF ---
     os.makedirs(os.path.dirname(gif_name), exist_ok=True)
     gif = imageio.mimsave(gif_name, frames, fps=2.5, loop=0, palettesize=256)
-
+ 
     print(f"GIF saved as {gif_name}")
-
+ 
     return gif_name
 
 # -------------------- #
