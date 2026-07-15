@@ -1049,10 +1049,11 @@ def plot_TF_fitting_viridis(neuron_model, df_data, mean_error, unique_inh, color
     return fig
 
 # -------------------- #
-def plots_TF_fitting(neuron_model, df_data, std_data, poly_params_2, params_SI, alpha, unique_inh, colors, y_lim = None):
-    
+def plots_TF_fitting(neuron_model, df_data, std_data, poly_params_2, params_SI, alpha, unique_inh, colors, y_lim = None, w_ad = 0.0):
+
     from ntmf.transfer_function import res_2_func
     distr_mean_error = np.zeros(len(unique_inh))
+    w_ad_arr = np.asarray(w_ad)   # scalar, or per-row array aligned to df_data
     idx = 0
     for fixed_inh, c in zip(unique_inh, colors):
         fig, ax = plt.subplots()
@@ -1068,7 +1069,8 @@ def plots_TF_fitting(neuron_model, df_data, std_data, poly_params_2, params_SI, 
         out_rate = df_data.loc[mask, 'avg_f_out'].to_numpy()
         
         fit_rate = df_data.loc[mask,'fit_rate']
-        mean_error = res_2_func(poly_params_2, data=df_data.loc[mask], params=params_SI, alpha=alpha)
+        w_slice = float(w_ad_arr) if w_ad_arr.ndim == 0 else w_ad_arr[np.asarray(mask)]
+        mean_error = res_2_func(poly_params_2, data=df_data.loc[mask], params=params_SI, alpha=alpha, w_ad=w_slice)
 
         distr_mean_error[idx] = mean_error
 
@@ -1111,13 +1113,14 @@ def plots_TF_distr_mean_error(neuron_model, inh_vals, mean_error,
     return fig 
     
 # -------------------- #
-def make_TF_gif(neuron_model, df_data, std_data, poly_params_2, params_SI, alpha, unique_inh, colors, gif_name, y_lim=None):
+def make_TF_gif(neuron_model, df_data, std_data, poly_params_2, params_SI, alpha, unique_inh, colors, gif_name, y_lim=None, w_ad=0.0):
  
     import io
     import imageio.v2 as imageio
     from ntmf.transfer_function import res_2_func
  
     frames = []
+    w_ad_arr = np.asarray(w_ad)   # scalar, or per-row array aligned to df_data
  
     idx = 0
     for fixed_inh, c in zip(unique_inh, colors):
@@ -1134,10 +1137,12 @@ def make_TF_gif(neuron_model, df_data, std_data, poly_params_2, params_SI, alpha
         out_rate = df_data.loc[mask, 'avg_f_out'].to_numpy()
         fit_rate = df_data.loc[mask, 'fit_rate']
  
+        w_slice = float(w_ad_arr) if w_ad_arr.ndim == 0 else w_ad_arr[np.asarray(mask)]
         mean_error = res_2_func(poly_params_2,
                                 data=df_data.loc[mask],
                                 params=params_SI,
-                                alpha=alpha)
+                                alpha=alpha,
+                                w_ad=w_slice)
  
         plt.errorbar(inp_exc, out_rate, std_data[idx], linestyle='None', color = c)
         ax.plot(inp_exc, out_rate, 'o', color=c, label=f'data (inh={fixed_inh} Hz)')
