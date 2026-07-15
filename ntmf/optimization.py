@@ -32,6 +32,7 @@ def run_fits(
     tau_V_norm: np.ndarray,
     params_SI: dict[str, float],
     *,
+    w_ad: float | np.ndarray = 0.0,
     saving_json: bool = False,
     out_file_name: Optional[str] = None,
 ) -> tuple[float, Optional[np.ndarray]]:
@@ -40,12 +41,25 @@ def run_fits(
     Stage 1: Estimate threshold from data → fit polynomial (SLSQP).
     Stage 2: Refit polynomial by minimising rate MSE (Nelder-Mead).
 
+    Parameters
+    ----------
+    w_ad : float or ndarray, optional
+        Adaptation current (Amps, SI). Scalar, or a per-row array aligned to
+        *df_data*. Default 0 (non-adaptive fit).
+
+        Adaptation enters stage 1 implicitly, through the *mu_V*, *sig_V*,
+        *tau_V*, *tau_V_norm* arrays the caller supplies: these must have been
+        computed by :func:`membrane_potential_fluctuations` with the *same*
+        ``w_ad``, otherwise the two stages characterise different neurons.
+        Stage 2 receives ``w_ad`` explicitly.
+
     Returns
     -------
     (mean_error, poly_params) — (inf, None) on failure.
     """
     try:
         # Stage 1
+        # (mu_V, sig_V, tau_V already carry w_ad)
         est_V_th = est_thresh(data=df_data, mu_V=mu_V, sig_V=sig_V, tau_V=tau_V, alpha=alpha)
 
         poly_params_init = -np.ones(10) * 1e-3
@@ -64,19 +78,22 @@ def run_fits(
         fit_2 = minimize(
             res_2_func,
             poly_params_1,
-            args=(df_data, params_SI, alpha),
+            args=(df_data, params_SI, alpha, w_ad),
             method="Nelder-Mead",
             options={"disp": False, "maxiter": 10000},
         )
         poly_params_2 = fit_2["x"]
 
-        mean_error = res_2_func(poly_params_2, data=df_data, params=params_SI, alpha=alpha)
+        mean_error = res_2_func(
+            poly_params_2, data=df_data, params=params_SI, alpha=alpha, w_ad=w_ad,
+        )
 
         if saving_json and out_file_name is not None:
             entry = {
                 "alpha": float(alpha),
                 "mean_error": float(mean_error),
                 "polynomial_params": poly_params_2.tolist(),
+                "adaptation": bool(np.any(np.asarray(w_ad) != 0.0)),
             }
             if os.path.exists(out_file_name):
                 with open(out_file_name, "r") as fh:
@@ -106,6 +123,7 @@ def discrete_alpha_search(
     tau_V_norm: np.ndarray,
     params_SI: dict[str, float],
     *,
+    w_ad: float | np.ndarray = 0.0,
     alpha_min: float = 0.1,
     alpha_max: float = 2.0,
     alpha_step: float = 0.001,
@@ -113,6 +131,13 @@ def discrete_alpha_search(
     out_file_name: Optional[str] = None,
 ) -> tuple[float, float, Optional[np.ndarray]]:
     """Search over discrete alpha values and return the best fit.
+
+    Parameters
+    ----------
+    w_ad : float or ndarray, optional
+        Adaptation current (Amps, SI), forwarded to :func:`run_fits`. Must be
+        the same ``w_ad`` used to compute *mu_V*, *sig_V*, *tau_V*,
+        *tau_V_norm*. Default 0 (non-adaptive search).
 
     Returns
     -------
@@ -127,7 +152,7 @@ def discrete_alpha_search(
     for alpha in alpha_candidates:
         mean_error, poly_params_2 = run_fits(
             alpha, df_data, mu_V, sig_V, tau_V, tau_V_norm, params_SI,
-            saving_json=saving_json, out_file_name=out_file_name,
+            w_ad=w_ad, saving_json=saving_json, out_file_name=out_file_name,
         )
         print(f"Tested alpha: {alpha:.3f}, mean_error: {mean_error:.6f}")
 
