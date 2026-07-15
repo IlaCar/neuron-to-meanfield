@@ -7,6 +7,17 @@ The firing rate of each population evolves as a first-order ODE:
 where the effective input rates combine external drive and recurrent
 connections weighted by K and Q.
 
+When ``adaptation=True`` the RS (excitatory) population additionally carries a
+mean adaptation current ``W`` (Amps, SI) as a third state variable, following
+Di Volo et al., 2019:
+
+    τ_w dW/dt = −W + b·τ_w·ν_RS + a·(μ_V_RS − E_L)
+
+``W`` is fed into the RS transfer function as ``w_ad``, so it hyperpolarises
+μ_V exactly as in the single-neuron characterisation. The FS population is
+non-adaptive. With ``adaptation=False`` (default) the model reduces to the
+original 2-variable form with ``w_ad=0`` (the "baked-in" approach).
+
 Two integration methods are provided:
   - :func:`simulate_MF_FS_RS` — Euler (backward-compatible)
   - :func:`simulate_MF_FS_RS_ode` — adaptive Runge-Kutta via scipy
@@ -20,7 +31,24 @@ import numpy as np
 from scipy.integrate import solve_ivp
 from scipy.interpolate import interp1d
 
-from ntmf.transfer_function import TF_template_sim
+from ntmf.transfer_function import (
+    TF_template_sim,
+    membrane_potential_fluctuations_sim,
+)
+
+
+# ---------------------------------------------------------------------------
+# helper: defensive adaptation-parameter lookup
+# ---------------------------------------------------------------------------
+
+def _lookup(d: dict[str, float], names: list[str], what: str) -> float:
+    for n in names:
+        if n in d:
+            return float(d[n])
+    raise KeyError(
+        f"adaptation parameter '{what}' not found in RS params; tried {names}. "
+        f"Available keys: {sorted(d)}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -32,6 +60,13 @@ class MFModel:
 
     Constructing this once and calling :meth:`rhs` avoids re-computing
     network-structure constants on every time step.
+
+    Parameters
+    ----------
+    adaptation : bool
+        If True, add the RS adaptation current ``W`` as a third state
+        variable and feed it into the RS transfer function. Requires
+        ``a``, ``b``, ``tau_w`` (SI) in ``params["RS"]``. Default False.
     """
 
     def __init__(
@@ -41,6 +76,7 @@ class MFModel:
         alphas: dict[str, float],
         network_config: dict[str, Any],
         tau_f: float = 0.01,
+        adaptation: bool = False,
     ):
         # --- TF parameters ---
         self.params = params
@@ -49,6 +85,17 @@ class MFModel:
         }
         self.alphas = alphas
         self.tau_f = tau_f
+        self.adaptation = adaptation
+
+        # --- adaptation parameters (RS only) ---
+        if self.adaptation:
+            rs = params["RS"]
+            self.a_RS = _lookup(rs, ["a", "a_w", "a_adapt"], "a")
+            self.b_RS = _lookup(rs, ["b", "b_w", "b_adapt"], "b")
+            self.tau_w_RS = _lookup(rs, ["tau_w", "tau_adapt", "tauw"], "tau_w")
+            self.E_L_RS = float(rs["E_L"])
+        else:
+            self.a_RS = self.b_RS = self.tau_w_RS = self.E_L_RS = 0.0
 
         # --- network structure ---
         N_FS = network_config["network_composition"]["FS_neuron"]
@@ -85,6 +132,11 @@ class MFModel:
         self._interp_inh_FS: interp1d | None = None
         self._interp_inh_RS: interp1d | None = None
 
+    @property
+    def n_state(self) -> int:
+        """Number of state variables: 3 with adaptation (ν_FS, ν_RS, W), else 2."""
+        return 3 if self.adaptation else 2
+
     def set_driving_input(
         self,
         time: np.ndarray,
@@ -101,8 +153,16 @@ class MFModel:
         self._interp_inh_RS = interp1d(time, driving_input["inhibitory"]["RS"], **kw)
 
     def rhs(self, t: float, y: np.ndarray) -> np.ndarray:
-        """ODE right-hand side: ``dy/dt`` for ``y = [ν_FS, ν_RS]``."""
-        nu_FS, nu_RS = y[0], y[1]
+        """ODE right-hand side.
+
+        State is ``y = [ν_FS, ν_RS]`` (no adaptation) or
+        ``y = [ν_FS, ν_RS, W]`` (with adaptation).
+        """
+        if self.adaptation:
+            nu_FS, nu_RS, W = y[0], y[1], y[2]
+        else:
+            nu_FS, nu_RS = y[0], y[1]
+            W = 0.0
 
         # interpolate external drive at time t
         nu_ext_exc_FS = float(self._interp_exc_FS(t))
@@ -133,10 +193,11 @@ class MFModel:
         ) / (self.K_ref_inh * self.Qi_FS_FS)
 
         # --- evaluate transfer functions ---
+        # RS sees the current adaptation W; FS is non-adaptive.
         F_RS = TF_template_sim(
             f_e=nu_eff_exc_RS, f_i=nu_eff_inh_RS,
             params=self.params["RS"], poly_params=self.poly_params["RS"],
-            alpha=self.alphas["RS"], w_ad=0.0,
+            alpha=self.alphas["RS"], w_ad=W,
         )
         F_FS = TF_template_sim(
             f_e=nu_eff_exc_FS, f_i=nu_eff_inh_FS,
@@ -144,10 +205,27 @@ class MFModel:
             alpha=self.alphas["FS"], w_ad=0.0,
         )
 
-        return np.array([
-            (F_FS - nu_FS) / self.tau_f,
-            (F_RS - nu_RS) / self.tau_f,
-        ])
+        dnu_FS = (F_FS - nu_FS) / self.tau_f
+        dnu_RS = (F_RS - nu_RS) / self.tau_f
+
+        if not self.adaptation:
+            return np.array([dnu_FS, dnu_RS])
+
+        # --- RS adaptation current (Di Volo et al., 2019) ---
+        # spike-triggered term (b) always present; subthreshold term (a)
+        # only if a != 0, and it needs μ_V evaluated at the current W.
+        if self.a_RS != 0.0:
+            mu_V_RS, _, _, _ = membrane_potential_fluctuations_sim(
+                f_e=nu_eff_exc_RS, f_i=nu_eff_inh_RS,
+                params=self.params["RS"], w_ad=W,
+            )
+            sub = self.a_RS * (mu_V_RS - self.E_L_RS)
+        else:
+            sub = 0.0
+
+        dW = (-W + self.b_RS * self.tau_w_RS * nu_RS + sub) / self.tau_w_RS
+
+        return np.array([dnu_FS, dnu_RS, dW])
 
 
 # ---------------------------------------------------------------------------
@@ -164,6 +242,7 @@ def simulate_MF_FS_RS_ode(
     driving_input: dict[str, dict[str, np.ndarray]],
     tau_f: float = 0.01,
     method: str = "RK45",
+    adaptation: bool = False,
 ) -> dict[str, np.ndarray]:
     """Simulate a 2-population mean-field network using adaptive ODE integration.
 
@@ -174,12 +253,15 @@ def simulate_MF_FS_RS_ode(
     method : str
         Integration method passed to ``scipy.integrate.solve_ivp``
         (default ``'RK45'``).
+    adaptation : bool
+        If True, integrate the RS adaptation current ``W`` explicitly and
+        return it under the ``"W"`` key. Default False.
 
     Returns
     -------
     dict[str, ndarray]
-        ``{"FS": rates, "RS": rates}`` — firing rate traces in Hz,
-        evaluated at the time points in *time*.
+        ``{"FS": rates, "RS": rates}`` — firing rate traces in Hz.
+        If ``adaptation=True`` also includes ``"W"`` (Amps, SI).
     """
     model = MFModel(
         params=params,
@@ -187,10 +269,11 @@ def simulate_MF_FS_RS_ode(
         alphas=alphas,
         network_config=network_config,
         tau_f=tau_f,
+        adaptation=adaptation,
     )
     model.set_driving_input(time, driving_input)
 
-    y0 = np.array([0.0, 0.0])
+    y0 = np.zeros(model.n_state)
 
     sol = solve_ivp(
         model.rhs,
@@ -206,11 +289,14 @@ def simulate_MF_FS_RS_ode(
         raise RuntimeError(f"ODE integration failed: {sol.message}")
 
     pops = neuron_models
-    # y[0] = FS, y[1] = RS  (order matches neuron_models)
-    return {
+    # y[0] = FS, y[1] = RS, (y[2] = W)  (order matches neuron_models)
+    out = {
         pops[0]: sol.y[0],
         pops[1]: sol.y[1],
     }
+    if model.adaptation:
+        out["W"] = sol.y[2]
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -226,6 +312,7 @@ def simulate_MF_FS_RS(
     network_config: dict[str, Any],
     driving_input: dict[str, dict[str, np.ndarray]],
     tau_f: float = 0.01,
+    adaptation: bool = False,
 ) -> dict[str, np.ndarray]:
     """Simulate a 2-population mean-field network using Euler integration.
 
@@ -237,6 +324,8 @@ def simulate_MF_FS_RS(
         Population names, e.g. ``["FS", "RS"]``.
     params : dict
         ``{"FS": params_SI_FS, "RS": params_SI_RS}`` (with K_e/K_i already added).
+        With ``adaptation=True``, ``params["RS"]`` must also contain
+        ``a``, ``b``, ``tau_w`` (SI).
     poly_params : dict
         ``{"FS": [...], "RS": [...]}`` — 10 polynomial coefficients per pop.
     alphas : dict
@@ -250,11 +339,15 @@ def simulate_MF_FS_RS(
         Each array has the same length as *time*.
     tau_f : float
         Population rate time constant in seconds (default 10 ms).
+    adaptation : bool
+        If True, integrate the RS adaptation current ``W`` explicitly and
+        return it under the ``"W"`` key. Default False.
 
     Returns
     -------
     dict[str, ndarray]
         ``{"FS": rates, "RS": rates}`` — firing rate traces in Hz.
+        If ``adaptation=True`` also includes ``"W"`` (Amps, SI).
     """
     model = MFModel(
         params=params,
@@ -262,6 +355,7 @@ def simulate_MF_FS_RS(
         alphas=alphas,
         network_config=network_config,
         tau_f=tau_f,
+        adaptation=adaptation,
     )
     model.set_driving_input(time, driving_input)
 
@@ -270,13 +364,26 @@ def simulate_MF_FS_RS(
     pops = neuron_models
 
     rates = {pop: np.zeros(n_steps) for pop in pops}
+    W = np.zeros(n_steps) if model.adaptation else None
 
     for t_idx in range(1, n_steps):
         t = time[t_idx]
-        y = np.array([rates[pops[0]][t_idx - 1], rates[pops[1]][t_idx - 1]])
+        if model.adaptation:
+            y = np.array([
+                rates[pops[0]][t_idx - 1],
+                rates[pops[1]][t_idx - 1],
+                W[t_idx - 1],
+            ])
+        else:
+            y = np.array([rates[pops[0]][t_idx - 1], rates[pops[1]][t_idx - 1]])
+
         dydt = model.rhs(t, y)
 
         rates[pops[0]][t_idx] = rates[pops[0]][t_idx - 1] + dt * dydt[0]
         rates[pops[1]][t_idx] = rates[pops[1]][t_idx - 1] + dt * dydt[1]
+        if model.adaptation:
+            W[t_idx] = W[t_idx - 1] + dt * dydt[2]
 
+    if model.adaptation:
+        rates["W"] = W
     return rates
