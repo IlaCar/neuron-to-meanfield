@@ -55,7 +55,8 @@ def membrane_potential_fluctuations(
     params : dict
         Must contain K_e, K_i, tau_syn, Q_e, Q_i, g_L, C_m, E_e, E_i, E_L.
     w_ad : float or ndarray, optional
-        Adaptation current. Default 0 (no adaptation).
+        Adaptation current (Amps, SI). Scalar or per-row array aligned to
+        *data*. Default 0 (no adaptation).
 
     Returns
     -------
@@ -226,7 +227,13 @@ def res_1_func(
     tau_V_norm: np.ndarray,
     est_V_th: np.ndarray,
 ) -> float:
-    """Stage-1 residual: MSE between estimated and polynomial threshold."""
+    """Stage-1 residual: MSE between estimated and polynomial threshold.
+
+    Note
+    ----
+    Adaptation enters through the precomputed *mu_V* / *sig_V* / *tau_V_norm*
+    (and hence *est_V_th*), so no ``w_ad`` argument is needed here.
+    """
     eff_V_th = eff_thresh(mu_V, sig_V, tau_V_norm, poly_params)
     return float(np.mean((est_V_th - eff_V_th) ** 2))
 
@@ -236,10 +243,20 @@ def res_2_func(
     data: pd.DataFrame,
     params: dict[str, float],
     alpha: float,
+    w_ad: float | np.ndarray = 0.0,
 ) -> float:
-    """Stage-2 residual: MSE between data and TF prediction."""
+    """Stage-2 residual: MSE between data and TF prediction.
+
+    Parameters
+    ----------
+    w_ad : float or ndarray, optional
+        Adaptation current (Amps, SI). Scalar or per-row array aligned to
+        *data* (same row order). Default 0 reproduces the non-adaptive fit.
+    """
     F_out = data["avg_f_out"].to_numpy()
-    F_pred = TF_template(data=data, params=params, poly_params=poly_params, alpha=alpha)
+    F_pred = TF_template(
+        data=data, params=params, poly_params=poly_params, alpha=alpha, w_ad=w_ad,
+    )
     return float(np.mean((F_out - F_pred) ** 2))
 
 
@@ -252,13 +269,15 @@ def TF_template(
     params: dict[str, float],
     poly_params: np.ndarray | list,
     alpha: float,
-    w_ad: float = 0.0,
+    w_ad: float | np.ndarray = 0.0,
 ) -> np.ndarray:
     """Vectorised transfer function: (ν_e, ν_i) → F_out.
 
     For each row in *data*, computes:
         F_out = α · erfc(z) / (2 · τ_V)
     where z = (V_th_eff − μ_V) / (√2 · σ_V).
+
+    ``w_ad`` may be a scalar or a per-row array aligned to *data*.
     """
     mu_V, sig_V, tau_V, tau_V_norm = membrane_potential_fluctuations(data=data, params=params, w_ad=w_ad)
 
@@ -318,8 +337,15 @@ def get_mean_error_distribution(
 
         get_mean_error_distribution(df_data, poly_params_2, params_SI,
                                      alpha, unique_inh, alpha_idx=None)
+
+    Adaptation
+    ----------
+    Pass ``w_ad`` as a keyword (scalar, or per-row array aligned to
+    *df_data* in its original row order) to evaluate the adapted TF. It is
+    sliced consistently with each inhibition mask. Default 0.
     """
     alpha_idx: int | None = kwargs.pop("alpha_idx", None)
+    w_ad = kwargs.pop("w_ad", 0.0)
 
     if len(args) == 5:          # new positional call
         df_data, poly_params_2, params_SI, alpha, unique_inh = args
@@ -339,11 +365,19 @@ def get_mean_error_distribution(
     if not isinstance(df_data, pd.DataFrame):
         raise TypeError(f"Expected df_data to be a DataFrame, got {type(df_data)}")
 
+    w_ad_arr = np.asarray(w_ad)
+
     distr = np.zeros(len(unique_inh))
     for idx, fixed_inh in enumerate(unique_inh):
         tol = 1e-6
         mask = np.isclose(df_data["input_inh"], fixed_inh, atol=tol)
+        # slice w_ad consistently with the mask (positional alignment)
+        if w_ad_arr.ndim == 0:
+            w_slice: float | np.ndarray = float(w_ad_arr)
+        else:
+            w_slice = w_ad_arr[np.asarray(mask)]
         distr[idx] = res_2_func(
-            poly_params_2, data=df_data.loc[mask].copy(), params=params_SI, alpha=alpha,
+            poly_params_2, data=df_data.loc[mask].copy(), params=params_SI,
+            alpha=alpha, w_ad=w_slice,
         )
     return distr
