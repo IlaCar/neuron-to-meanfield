@@ -1,0 +1,8 @@
+Population Name,Population Type,Node Type,Neurons,Firing Rate
+RS1,RS,P1,8000,5
+FS10,FS,P1,2000,12
+FS20,FS,P1,1000,10
+RS2,RS,P2,8000,5
+FS2,FS,P2,2000,12
+FS3,FS,P2,2000,20
+RS10,RS,P1,1000,10
