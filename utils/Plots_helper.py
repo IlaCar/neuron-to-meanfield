@@ -1098,30 +1098,41 @@ def plots_TF_fitting(neuron_model, df_data, std_data, poly_params_2, params_SI, 
 
 # -------------------- #
 def plots_TF_distr_mean_error(neuron_model, inh_vals, mean_error,
-                              alpha = None, alpha_idx = None, fig = None):
+                              alpha=None, alpha_idx=None, n_alphas=None,
+                              fig=None, ax=None, cmap_range=(0.0, 1.0)):
 
-    if fig == None:
-        fig = plt.figure(figsize=(7,6))
-    if alpha == None:
-        fig = plt.figure(figsize=(7,6))
-        plt.plot(inh_vals, mean_error, '.-', color = color_palette[neuron_model])
+    """Plot the mean TF error against inhibitory input.
 
+    If `alpha` is given, the curve is coloured by its rank in the alpha
+    sequence (`alpha_idx` out of `n_alphas`) using the population-specific
+    sequential colormap `neuron_line_cmaps[neuron_model]`, so that repeated
+    calls onto the same figure produce a light-to-dark family of curves.
+    """
+    if fig is None and ax is None:
+        fig, ax = plt.subplots(figsize=(7, 6))
+    elif ax is None:
+        ax = fig.gca() if fig.axes else fig.add_subplot(111)
     else:
-        if neuron_model == 'FS':
-            cmap = plt.cm.get_cmap('Reds_r', 15)
-        if neuron_model == 'RS':
-            cmap = plt.cm.get_cmap('Greens_r', 15)   
-        if neuron_model == 'RS_no_adapt':
-            cmap = plt.cm.get_cmap('Blues_r', 15) 
-       
-        #fig = plt.figure('Mean error as function of alphas', figsize=(7,6))
-        plt.plot(inh_vals, mean_error, '.-', color = cmap(alpha_idx), label=f'alpha = {alpha}')
-        plt.legend(reverse=True)
+        fig = ax.figure
 
-    plt.title(f'{neuron_model} mean error distribution')
-    plt.xlabel('Inhibitory input (Hz)')
-    plt.ylabel('Mean error (Hz)')
-    return fig 
+    if alpha is None:
+        ax.plot(inh_vals, mean_error, '.-',
+                color=color_palette[neuron_model])
+    else:
+        cmap = neuron_line_cmaps[neuron_model]
+        if alpha_idx is None or n_alphas is None or n_alphas < 2:
+            frac = 1.0
+        else:
+            lo, hi = cmap_range
+            frac = lo + (hi - lo) * alpha_idx / (n_alphas - 1)
+        ax.plot(inh_vals, mean_error, '.-',
+                color=cmap(frac), label=rf'$\alpha$ = {alpha:.3g}')
+        ax.legend(reverse=True, frameon=False)
+
+    ax.set_title(f'{neuron_model} mean error distribution')
+    ax.set_xlabel('Inhibitory input (Hz)')
+    ax.set_ylabel('Mean error (Hz)')
+    return fig
     
 # -------------------- #
 def make_TF_gif(neuron_model, df_data, std_data, poly_params_2, params_SI, alpha, unique_inh, colors, gif_name, y_lim=None, w_ad=0.0):
