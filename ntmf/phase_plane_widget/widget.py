@@ -35,9 +35,18 @@ class PhasePlaneWidget(anywidget.AnyWidget):
 
     # ── Initial state (synced to JS front-end) ──
     model_name = traitlets.Unicode("wilson_cowan").tag(sync=True)
+    # Human-readable label for the model selector.  Models supplied from
+    # Python are absent from the JS registry, so without this the selector
+    # would fall back to showing "Wilson-Cowan".
+    model_label = traitlets.Unicode("").tag(sync=True)
     params = traitlets.Dict({}).tag(sync=True)
     param_info = traitlets.Dict({}).tag(sync=True)
+    # Optional slider arrangement: a list of rows, each row a list of
+    # parameter names.  Empty -> the front-end falls back to a flowing list.
+    param_layout = traitlets.List([]).tag(sync=True)
     state_names = traitlets.List(["x", "y"]).tag(sync=True)
+    state_labels = traitlets.List([]).tag(sync=True)
+    state_units = traitlets.List([]).tag(sync=True)
 
     x0 = traitlets.Float(0.1).tag(sync=True)
     y0 = traitlets.Float(0.1).tag(sync=True)
@@ -45,6 +54,14 @@ class PhasePlaneWidget(anywidget.AnyWidget):
     xlim = traitlets.List([-0.5, 1.5]).tag(sync=True)
     ylim = traitlets.List([-0.5, 1.5]).tag(sync=True)
     t_max = traitlets.Float(100.0).tag(sync=True)
+    # Output step for the trajectory, in the model's time unit.  0.0 means
+    # "auto": t_max / 2000, so the transient is resolved regardless of t_max.
+    # It used to be hard-coded at 0.01 s, i.e. exactly one tau_f, which left
+    # the relaxation of this model covered by about four points.
+    dt = traitlets.Float(0.0).tag(sync=True)
+    # Label only -- the unit the model's time variable is expressed in.  The
+    # widget does not convert; it just annotates the time-series axis.
+    time_unit = traitlets.Unicode("s").tag(sync=True)
 
     # Pre-computed data (populated by JS, kept for inspection / export)
     nullcline_x = traitlets.List([]).tag(sync=True)
@@ -56,6 +73,15 @@ class PhasePlaneWidget(anywidget.AnyWidget):
     sweep_results = traitlets.List([]).tag(sync=True)
     sweep_fixed_points = traitlets.List([]).tag(sync=True)
     sweep_running = traitlets.Bool(False).tag(sync=True)
+    # The JS front-end reads and writes this; it was missing from the trait
+    # list, so the sweep panel could never label its own x axis.
+    sweep_param = traitlets.Unicode("").tag(sync=True)
+    # Cost controls for the Python-side sweep.  Regime detection integrates
+    # four trajectories per sweep point, which is expensive for models whose
+    # RHS is not cheap; it is opt-in.
+    sweep_options = traitlets.Dict(
+        {"n_grid": 12, "detect_regime": False}
+    ).tag(sync=True)
 
     # Display toggles
     show_nullclines = traitlets.Bool(True).tag(sync=True)
@@ -97,13 +123,25 @@ class PhasePlaneWidget(anywidget.AnyWidget):
         return v
 
     _model_instance = None
+    # Guards the model_name observer, which traitlets fires from inside
+    # HasTraits.__init__ -- before __init__ has had a chance to apply the
+    # caller's xlim/ylim.  Without it, constructor arguments are lost.
+    _initialised = False
 
     def __init__(self, model=None, **kwargs):
         if model is not None:
             self._model_instance = model
             kwargs.setdefault("model_name", model.name)
+            kwargs.setdefault(
+                "model_label",
+                getattr(model, "display_name", None) or type(model).__name__,
+            )
         super().__init__(**kwargs)
-        self._update_model()
+        # Only fall back to the model's defaults for view state the caller did
+        # NOT supply.  Previously _update_model() ran unconditionally and
+        # silently overwrote xlim/ylim/params passed to the constructor.
+        self._update_model(preserve=set(kwargs))
+        self._initialised = True
         # Register handler for custom JS → Python messages (e.g. TikZ export)
         self.on_msg(self._on_custom_msg)
         if self.python_compute and self._model_instance is not None:
@@ -117,21 +155,41 @@ class PhasePlaneWidget(anywidget.AnyWidget):
         cls = MODEL_REGISTRY.get(self.model_name, MODEL_REGISTRY["wilson_cowan"])
         return cls()
 
-    def _update_model(self):
-        """Push model metadata to the JS front-end."""
+    def _update_model(self, preserve=frozenset()):
+        """Push model metadata to the JS front-end.
+
+        Parameters
+        ----------
+        preserve : set of str
+            Trait names the caller set explicitly.  These are left untouched
+            so constructor arguments are not clobbered by model defaults.
+            Switching models later calls this with an empty set, which resets
+            the view as intended.
+        """
         model = self._get_model()
         self.param_info = model.param_info
         self.state_names = model.state_names
-        self.params = {k: v[2] for k, v in model.param_info.items()}
-        self.xlim = model.default_xlim
-        self.ylim = model.default_ylim
+        self.state_labels = list(getattr(model, "state_labels", None) or [])
+        self.state_units = list(getattr(model, "state_units", None) or [])
+        self.param_layout = list(getattr(model, "param_layout", None) or [])
+        if "params" not in preserve:
+            self.params = {k: v[2] for k, v in model.param_info.items()}
+        if "xlim" not in preserve:
+            self.xlim = model.default_xlim
+        if "ylim" not in preserve:
+            self.ylim = model.default_ylim
 
     @traitlets.observe("model_name")
     def _on_model_change(self, change):
+        # During construction __init__ pushes the metadata itself, preserving
+        # whatever the caller passed.  Only a genuine later model switch
+        # should reset the view limits.
+        if not self._initialised:
+            return
         if self.model_name != "custom":
             self._update_model()
 
-    @traitlets.observe("params", "x0", "y0", "xlim", "ylim", "t_max", "display")
+    @traitlets.observe("params", "x0", "y0", "xlim", "ylim", "t_max", "dt", "display")
     def _on_state_change(self, change):
         """Trigger Python-side recomputation when interactive state changes."""
         if not self.python_compute or self._model_instance is None:
@@ -165,7 +223,8 @@ class PhasePlaneWidget(anywidget.AnyWidget):
         if len(display) > 1:
             state0[display[1]] = self.y0
 
-        traj = model.compute_trajectory(state0, params, [0, self.t_max], dt=0.01)
+        dt = float(self.dt) if self.dt > 0 else max(self.t_max / 2000.0, 1e-9)
+        traj = model.compute_trajectory(state0, params, [0, self.t_max], dt=dt)
 
         # Write back to synced traits (triggers JS re-render)
         self.nullcline_x = nc_x
@@ -231,21 +290,84 @@ class PhasePlaneWidget(anywidget.AnyWidget):
 
     # ── Python-side helpers (for programmatic use / validation) ──
 
-    def run_sweep(self, param_name: str, values: list):
-        """Run a parameter sweep from Python (delegates to JS in the widget).
+    def run_sweep(self, param_name: str, values, *, progress=None):
+        """Sweep ``param_name`` over ``values`` using the Python model.
+
+        For models defined in Python (``python_compute=True``) this is the
+        only correct implementation: the JS front-end has no compiled RHS for
+        them and its own sweep path resolves the model to ``undefined``.
+
+        Fixed points found at one sweep step are reused as Newton seeds for
+        the next, so branches are followed by continuation rather than
+        rediscovered from scratch on every step.
 
         Parameters
         ----------
         param_name : str
-            Parameter to vary.
-        values : list of float
-            Values to evaluate.
+            Parameter to vary.  Must appear in ``param_info``.
+        values : sequence of float
+            Values to evaluate, in order.
+        progress : callable, optional
+            Called as ``progress(i, n)`` after each sweep step.
+
+        Returns
+        -------
+        (results, fixed_points)
+            ``results`` is a list of dicts with ``param_value``, ``regime``
+            and ``num_fixed_points``.  ``fixed_points`` is a flat list of
+            ``[param_value, x, y, stability]``.
         """
-        # The JS front-end handles sweeps interactively.  This method is a
-        # convenience for programmatic access; it simply ensures the sweep
-        # traitlets are in a consistent state.  For actual computation in
-        # a headless environment use the model classes in ``models.py``.
-        pass  # sweeps are computed client-side by the JS front-end
+        model = self._get_model()
+        if param_name not in self.param_info:
+            raise KeyError(
+                f"{param_name!r} is not a sweep parameter; "
+                f"expected one of {sorted(self.param_info)}"
+            )
+
+        opts = dict(self.sweep_options or {})
+        n_grid = int(opts.get("n_grid", 12))
+        want_regime = bool(opts.get("detect_regime", False))
+
+        xlim = list(self.xlim)
+        ylim = list(self.ylim)
+        values = [float(v) for v in values]
+
+        results = []
+        all_fps = []
+        seeds = None
+
+        for i, val in enumerate(values):
+            p = {**self.params, param_name: val}
+            try:
+                fps = model.find_fixed_points(
+                    p, xlim, ylim, n_grid=n_grid, seeds=seeds
+                )
+            except TypeError:  # models.py predating the ``seeds`` argument
+                fps = model.find_fixed_points(p, xlim, ylim, n_grid=n_grid)
+            seeds = [[fp[0], fp[1]] for fp in fps] or None
+
+            if want_regime:
+                regime = model.detect_regime(p, xlim, ylim)
+            else:
+                regime = "other"
+
+            results.append(
+                {
+                    "param_value": val,
+                    "regime": regime,
+                    "num_fixed_points": len(fps),
+                }
+            )
+            for fp in fps:
+                all_fps.append([val, float(fp[0]), float(fp[1]), fp[2]])
+
+            if progress is not None:
+                progress(i + 1, len(values))
+
+        self.sweep_param = param_name
+        self.sweep_results = results
+        self.sweep_fixed_points = all_fps
+        return results, all_fps
 
     # ── Standalone HTML export ──
 
@@ -277,7 +399,9 @@ class PhasePlaneWidget(anywidget.AnyWidget):
 
         state = {
             "model_name": self.model_name,
+            "model_label": self.model_label,
             "params": self.params,
+            "param_layout": list(self.param_layout),
             "param_info": self.param_info,
             "state_names": self.state_names,
             "x0": self.x0,
@@ -285,6 +409,10 @@ class PhasePlaneWidget(anywidget.AnyWidget):
             "xlim": self.xlim,
             "ylim": self.ylim,
             "t_max": self.t_max,
+            "dt": self.dt,
+            "time_unit": self.time_unit,
+            "state_labels": list(self.state_labels),
+            "state_units": list(self.state_units),
             "show_nullclines": self.show_nullclines,
             "show_vector_field": self.show_vector_field,
             "show_trajectory": self.show_trajectory,
@@ -350,12 +478,20 @@ render({{ model: mockModel, el: document.getElementById('ppw-root') }});
 
     # ── TikZ / PGFPlots export ──
 
+    # ── NTMF colour scheme (mirrors NTMF_PALETTE in static/widget.js) ──
+    # Warm hues encode inhibition, cool hues encode excitation.
+    NTMF_COLORS = ["f46d43", "225ea5", "41b6c4", "8c6bb1"]   # FS, RS, RS_no_adapt, extra
+    TRAJ_COLOR = "2f2f2f"
+    IC_COLOR = "f46d43"
+
+    # Stability is carried by marker SHAPE; colour stays achromatic so the
+    # three population hues remain exclusive to populations.
     STABILITY_MARKERS = {
-        "stable_node": ("circle", "green!70!black", "green!70!black"),
-        "stable_focus": ("circle", "green!70!black", "green!70!black"),
-        "unstable_node": ("circle", "red!70!black", "white"),
-        "unstable_focus": ("circle", "red!70!black", "white"),
-        "saddle": ("diamond", "purple", "purple"),
+        "stable_node": ("circle", "ntmfFP", "ntmfFP"),
+        "stable_focus": ("circle", "ntmfFP", "ntmfFP"),
+        "unstable_node": ("circle", "ntmfFPopen", "white"),
+        "unstable_focus": ("circle", "ntmfFPopen", "white"),
+        "saddle": ("diamond", "ntmfSaddle", "ntmfSaddle"),
     }
 
     def _compute_vector_field_for_tikz(self, nx=15, ny=15):
@@ -393,6 +529,57 @@ render({{ model: mockModel, el: document.getElementById('ppw-root') }});
                     arrows.append([float(xi), float(yi), float(x2), float(y2)])
         return arrows
 
+    def _axis_title(self, index: int, fallback: str = "x") -> str:
+        """LaTeX axis title for state variable ``index``, including units."""
+        names = list(self.state_names)
+        labels = list(self.state_labels)
+        units = list(self.state_units)
+        if index < len(labels) and labels[index]:
+            body = self._tex_label_from_display(labels[index])
+        elif index < len(names):
+            body = self._tex_label(names[index])
+        else:
+            body = f"${fallback}$"
+        unit = units[index] if index < len(units) else ""
+        if not unit:
+            return body
+        # body is already wrapped in $...$; splice the unit inside so the
+        # brackets and \mathrm stay in math mode.
+        if body.startswith("$") and body.endswith("$"):
+            return f"{body[:-1]}~[\\mathrm{{{unit}}}]$"
+        return f"${body}~[\\mathrm{{{unit}}}]$"
+
+    @staticmethod
+    def _tex_label_from_display(label: str) -> str:
+        """``\u03bd_FS`` -> ``$\\nu_{\\mathrm{FS}}$`` (already-typeset names)."""
+        greek = {
+            "\u03bd": "nu", "\u03bc": "mu", "\u03c3": "sigma", "\u03c4": "tau",
+            "\u03b1": "alpha", "\u03b2": "beta", "\u03b3": "gamma",
+            "\u03bb": "lambda", "\u03c9": "omega", "\u03c1": "rho",
+        }
+        head, _, sub_ = label.partition("_")
+        base = f"\\{greek[head]}" if head in greek else f"\\mathrm{{{head}}}"
+        if sub_:
+            return f"${base}_{{\\mathrm{{{sub_}}}}}$"
+        return f"${base}$"
+
+    @staticmethod
+    def _tex_label(name: str) -> str:
+        """Turn a state-variable name into a LaTeX math label.
+
+        ``nu_FS`` -> ``$\\nu_{\\mathrm{FS}}$``.  Without this, the raw name is
+        dropped into math mode and ``nu_FS`` typesets as *nuF S*.
+        """
+        greek = {
+            "nu", "mu", "sigma", "tau", "alpha", "beta", "gamma", "delta",
+            "lambda", "phi", "psi", "theta", "omega", "rho", "eta", "kappa",
+        }
+        head, _, sub = name.partition("_")
+        base = f"\\{head}" if head in greek else f"\\mathrm{{{head}}}"
+        if sub:
+            return f"${base}_{{\\mathrm{{{sub.replace('_', '')}}}}}$"
+        return f"${base}$"
+
     @staticmethod
     def _fmt_coords(data):
         """Format a list of [x, y] pairs as PGFPlots ``coordinates`` block."""
@@ -414,16 +601,10 @@ render({{ model: mockModel, el: document.getElementById('ppw-root') }});
         """
         filename = pathlib.Path(filename)
 
-        x_label = (
-            self.state_names[self.display[0]]
-            if self.display and len(self.state_names) > self.display[0]
-            else "x"
-        )
-        y_label = (
-            self.state_names[self.display[1]]
-            if self.display and len(self.state_names) > self.display[1]
-            else "y"
-        )
+        ix = self.display[0] if self.display else 0
+        iy = self.display[1] if self.display and len(self.display) > 1 else 1
+        x_label = self._axis_title(ix, "x")
+        y_label = self._axis_title(iy, "y")
         xlim = self.xlim
         ylim = self.ylim
 
@@ -458,19 +639,25 @@ render({{ model: mockModel, el: document.getElementById('ppw-root') }});
             )
             plots.append(lines)
 
+        # Nullclines take the colour of the population they belong to.
+        idx_cx = self.display[0] if self.display else 0
+        idx_cy = self.display[1] if self.display and len(self.display) > 1 else 1
+        col_x = f"ntmfState{idx_cx % len(self.NTMF_COLORS)}"
+        col_y = f"ntmfState{idx_cy % len(self.NTMF_COLORS)}"
+
         if nc_x:
             plots.append(
-                f"            \\addplot[blue, thick, no marks, smooth] {self._fmt_coords(nc_x)};"
+                f"            \\addplot[{col_x}, thick, no marks, smooth] {self._fmt_coords(nc_x)};"
             )
 
         if nc_y:
             plots.append(
-                f"            \\addplot[red, thick, no marks, smooth] {self._fmt_coords(nc_y)};"
+                f"            \\addplot[{col_y}, thick, no marks, smooth] {self._fmt_coords(nc_y)};"
             )
 
         if traj_data:
             plots.append(
-                f"            \\addplot[green!60!black, thick, no marks, smooth] {self._fmt_coords(traj_data)};"
+                f"            \\addplot[ntmfTraj, thick, no marks, smooth] {self._fmt_coords(traj_data)};"
             )
 
         plots_block = "\n".join(plots)
@@ -509,11 +696,25 @@ render({{ model: mockModel, el: document.getElementById('ppw-root') }});
             fp_nodes.append(node_tex)
         fp_block = "\n            ".join(fp_nodes)
 
+        # ── initial-condition marker (matches the on-screen legend) ──
+        ic_node = ""
+        if traj_data:
+            ic_x, ic_y = traj_data[0]
+            ic_node = (
+                f"\\node[draw=black, fill=ntmfIC, circle, inner sep=1.8pt] "
+                f"at (axis cs:{ic_x:.6f},{ic_y:.6f}) {{}};"
+            )
+
         # ── parameter annotation ──
-        param_lines = ", ".join((k.replace('_', '\\_') + f"={v:.4g}") for k, v in self.params.items())
+        # NB: this is plain concatenation, not an f-string, so braces must not
+        # be doubled.  The previous version emitted "{{...}}};" (unbalanced).
+        param_lines = ", ".join(
+            (k.replace("_", r"\_") + f"={v:.4g}") for k, v in self.params.items()
+        )
+        label = (self.model_label or self.model_name).replace("_", r"\_")
         param_node = (
             r"\path (rel axis cs:0.02,0.98) node[anchor=north west, font=\tiny, align=left] "
-            "{{" + self.model_name.replace('_', '\_') + "\ " + param_lines + "}}};"
+            "{" + label + r"\\ " + param_lines + "};"
         )
 
         tex = (
@@ -522,17 +723,28 @@ render({{ model: mockModel, el: document.getElementById('ppw-root') }});
             r"\usepackage{tikz}" + "\n"
             r"\pgfplotsset{compat=1.17}" + "\n"
             r"\usetikzlibrary{shapes.geometric}" + "\n"
+            + "".join(
+                f"\\definecolor{{ntmfState{i}}}{{HTML}}{{{c.upper()}}}\n"
+                for i, c in enumerate(self.NTMF_COLORS)
+            )
+            + f"\\definecolor{{ntmfTraj}}{{HTML}}{{{self.TRAJ_COLOR.upper()}}}\n"
+            + f"\\definecolor{{ntmfIC}}{{HTML}}{{{self.IC_COLOR.upper()}}}\n"
+            + "\\definecolor{ntmfFP}{HTML}{1A1A1A}\n"
+            + "\\definecolor{ntmfFPopen}{HTML}{8A8A8A}\n"
+            + "\\definecolor{ntmfSaddle}{HTML}{7B3294}\n"
             r"\begin{document}" + "\n"
             r"\begin{tikzpicture}" + "\n"
             r"\begin{axis}[" + "\n"
             "    width=10cm, height=10cm,\n"
             f"    xmin={xlim[0]}, xmax={xlim[1]}, ymin={ylim[0]}, ymax={ylim[1]},\n"
-            f"    xlabel=${x_label}$, ylabel=${y_label}$,\n"
-            "    axis lines=middle,\n"
+            f"    xlabel={x_label}, ylabel={y_label},\n"
+            "    axis lines=box,\n"
+            "    tick align=outside,\n"
             "    enlargelimits=true,\n"
             "]\n"
             + plots_block + "\n"
             + (fp_block + "\n" if fp_block else "")
+            + ("            " + ic_node + "\n" if ic_node else "")
             + "            " + param_node + "\n"
             r"\end{axis}" + "\n"
             r"\end{tikzpicture}" + "\n"
@@ -543,9 +755,39 @@ render({{ model: mockModel, el: document.getElementById('ppw-root') }});
 
     # ── Custom message handler (JS → Python) ──
 
+    def _handle_sweep_request(self, content):
+        """Run a sweep requested by the JS front-end and report progress."""
+        import numpy as np
+
+        param = content.get("param")
+        try:
+            lo = float(content["min"])
+            hi = float(content["max"])
+            n = max(2, int(content["n"]))
+        except (KeyError, TypeError, ValueError) as exc:
+            self.send({"type": "sweep_error", "message": f"bad sweep range: {exc}"})
+            return
+
+        values = np.linspace(lo, hi, n).tolist()
+        self.sweep_running = True
+
+        def _progress(i, total):
+            self.send({"type": "sweep_progress", "pct": round(100 * i / total)})
+
+        try:
+            self.run_sweep(param, values, progress=_progress)
+        except Exception as exc:  # surface it in the widget, not just stderr
+            self.send({"type": "sweep_error", "message": f"{type(exc).__name__}: {exc}"})
+        finally:
+            self.sweep_running = False
+            self.send({"type": "sweep_done"})
+
     def _on_custom_msg(self, _widget, content, buffers):
         """Handle messages from the JS front-end."""
         msg_type = content.get("type")
+        if msg_type == "run_sweep":
+            self._handle_sweep_request(content)
+            return
         if msg_type == "export_tikz":
             fd, tmppath = tempfile.mkstemp(suffix=".tex", prefix="phase_plane_")
             os.close(fd)

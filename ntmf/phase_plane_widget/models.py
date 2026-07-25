@@ -11,8 +11,13 @@ class BaseModel:
     """Base class for neural mass models."""
 
     name = "base"
+    display_name = None   # human-readable label shown in the widget selector
     dim = 2
     state_names = ["x", "y"]
+    # Optional typeset names and units for figure axes and legends.  Both are
+    # parallel to ``state_names``; empty entries fall back to the raw name.
+    state_labels = []
+    state_units = []
     default_params = {}
     param_info = {}
     default_xlim = [-1.0, 1.0]
@@ -130,38 +135,48 @@ class BaseModel:
 
         return points
 
-    def find_fixed_points(self, params, xlim, ylim, n_grid=25):
-        """Find fixed points by grid search + numerical refinement."""
+    def find_fixed_points(self, params, xlim, ylim, n_grid=25, seeds=None):
+        """Find fixed points by grid search + numerical refinement.
+
+        Parameters
+        ----------
+        seeds : list of (x, y), optional
+            Extra Newton starting points, tried before the grid.  Passing the
+            previous solutions of a parameter sweep turns the search into a
+            continuation, which keeps thin branches from being missed at
+            coarse ``n_grid``.
+        """
         x = np.linspace(xlim[0], xlim[1], n_grid)
         y = np.linspace(ylim[0], ylim[1], n_grid)
+        starts = [tuple(map(float, s)) for s in (seeds or [])]
+        starts += [(float(xi), float(yi)) for xi in x for yi in y]
         fixed_points = []
         tol = 0.08
 
-        for xi in x:
-            for yi in y:
-                try:
-                    sol = fsolve(lambda s: self.f(0, s, params), [xi, yi], full_output=True)
-                    if sol[2] == 1:
-                        fp = sol[0]
-                        if (xlim[0] - 0.5 <= fp[0] <= xlim[1] + 0.5 and
-                                ylim[0] - 0.5 <= fp[1] <= ylim[1] + 0.5):
-                            # Verify it's actually a fixed point
-                            residual = np.linalg.norm(self.f(0, fp, params))
-                            if residual > 0.1:
-                                continue
-                            # Check for duplicates
-                            is_new = True
-                            for existing in fixed_points:
-                                if np.linalg.norm(np.array(fp) - np.array(existing[:2])) < tol:
-                                    is_new = False
-                                    break
-                            if is_new:
-                                J = self.jacobian(fp, params)
-                                ev = np.linalg.eigvals(J)
-                                stability = self._classify_fixed_point(ev)
-                                fixed_points.append([float(fp[0]), float(fp[1]), stability])
-                except Exception:
-                    pass
+        for xi, yi in starts:
+            try:
+                sol = fsolve(lambda s: self.f(0, s, params), [xi, yi], full_output=True)
+                if sol[2] == 1:
+                    fp = sol[0]
+                    if (xlim[0] - 0.5 <= fp[0] <= xlim[1] + 0.5 and
+                            ylim[0] - 0.5 <= fp[1] <= ylim[1] + 0.5):
+                        # Verify it's actually a fixed point
+                        residual = np.linalg.norm(self.f(0, fp, params))
+                        if residual > 0.1:
+                            continue
+                        # Check for duplicates
+                        is_new = True
+                        for existing in fixed_points:
+                            if np.linalg.norm(np.array(fp) - np.array(existing[:2])) < tol:
+                                is_new = False
+                                break
+                        if is_new:
+                            J = self.jacobian(fp, params)
+                            ev = np.linalg.eigvals(J)
+                            stability = self._classify_fixed_point(ev)
+                            fixed_points.append([float(fp[0]), float(fp[1]), stability])
+            except Exception:
+                pass
 
         return fixed_points
 

@@ -12514,12 +12514,43 @@ var nerdamer = (function (imports) {
   return nerdamer;
 })();
 
+// ═══════════════════════════════════════════════════════════════
+//  NTMF COLOUR SCHEME  --  single source of truth
+//  Population colours follow the project convention:
+//  warm hues encode inhibition, cool hues encode excitation.
+// ═══════════════════════════════════════════════════════════════
+const NTMF_PALETTE = {
+  // ── populations (order matches STATE_COLORS below) ──
+  FS:          "#f46d43",   // fast-spiking, inhibitory        (warm)
+  RS:          "#225ea5",   // regular-spiking, adaptive       (cool)
+  RS_no_adapt: "#41b6c4",   // regular-spiking, no adaptation  (cool)
+  extra:       "#8c6bb1",   // 4th state variable, if any
+
+  // ── trajectory annotations (deliberately NOT population colours) ──
+  trajectory:        "#2f2f2f",
+  initial_condition: "#f46d43",   // see note in README_CHANGES.md
+  ic_ring:           "#ffffff",
+  ic_edge:           "#1a1a1a",
+
+  // ── plot furniture ──
+  vector_field: "#c9ced3",
+  axis:         "#333333",
+  grid:         "#e9ecef",
+  zero_line:    "#9aa0a6",
+  tick_text:    "#555555",
+  plot_bg:      "#ffffff",
+  canvas_bg:    "#ffffff",
+};
+
+// Fixed-point stability is encoded primarily by MARKER SHAPE
+// (filled / open / diamond), so it uses a neutral achromatic ramp.
+// This keeps the three population hues exclusive to populations.
 const STABILITY_COLORS = {
-  stable_node: "#4CAF50",
-  stable_focus: "#8BC34A",
-  unstable_node: "#f44336",
-  unstable_focus: "#FF9800",
-  saddle: "#9C27B0",
+  stable_node: "#1a1a1a",
+  stable_focus: "#1a1a1a",
+  unstable_node: "#8a8a8a",
+  unstable_focus: "#8a8a8a",
+  saddle: "#7b3294",
 };
 
 const REGIME_COLORS = {
@@ -12528,7 +12559,12 @@ const REGIME_COLORS = {
   other: "#f5f5f5",
 };
 
-const STATE_COLORS = ["#2196F3", "#f44336", "#4CAF50", "#FF9800"];
+const STATE_COLORS = [
+  NTMF_PALETTE.FS,
+  NTMF_PALETTE.RS,
+  NTMF_PALETTE.RS_no_adapt,
+  NTMF_PALETTE.extra,
+];
 
 /** Safe exponential that prevents overflow. */
 function expClamp(x) {
@@ -13517,6 +13553,14 @@ const C2S = (function() {
             id =  randomString(this.__ids),
             newGroup = this.__createElement("g");
 
+        // Flush accumulated path data onto the element before it becomes a
+        // clip region.  Upstream canvas2svg only writes `d` on stroke()/fill(),
+        // so a beginPath()->rect()->clip() sequence would otherwise move an
+        // empty <path/> into the clipPath and clip everything away.
+        if (this.__currentDefaultPath) {
+            this.__currentElement.setAttribute("d", this.__currentDefaultPath);
+        }
+
         group.removeChild(this.__currentElement);
         clipPath.setAttribute("id", id);
         clipPath.appendChild(this.__currentElement);
@@ -14258,7 +14302,7 @@ function validateFixedPoint(f, fp, params, classification) {
 
 /** Draw a fixed-point marker whose shape encodes stability type. */
 function drawFixedPointMarker(ctx, sx, sy, stability, radius = 7) {
-  const color = STABILITY_COLORS[stability] || "#666";
+  const color = STABILITY_COLORS[stability] || NTMF_PALETTE.axis;
   ctx.lineWidth = 1.5;
 
   switch (stability) {
@@ -14625,56 +14669,137 @@ function runParameterSweep(f, modelName, sweepParam, params, vmin, vmax, n, xlim
 //  CANVAS RENDERING  (unchanged coordinate helpers & draw calls)
 // ═══════════════════════════════════════════════════════════════
 
+// Margin reserved around the data area for tick labels and axis titles.
+// Data used to be mapped onto the *full* canvas, which pushed the axes off
+// the visible area whenever xlim/ylim started at 0 (the usual case for
+// firing rates).  All world->screen mapping now goes through plotRect().
+const PLOT_MARGIN = { left: 58, right: 18, top: 16, bottom: 46 };
+
+function plotRect(w, h) {
+  const m = PLOT_MARGIN;
+  const x0 = m.left;
+  const y0 = m.top;
+  const x1 = Math.max(x0 + 1, w - m.right);
+  const y1 = Math.max(y0 + 1, h - m.bottom);
+  return { x0, y0, x1, y1, w: x1 - x0, h: y1 - y0 };
+}
+
 function worldToScreen(wx, wy, xlim, ylim, w, h) {
-  return [((wx - xlim[0]) / (xlim[1] - xlim[0])) * w, h - ((wy - ylim[0]) / (ylim[1] - ylim[0])) * h];
+  const r = plotRect(w, h);
+  return [
+    r.x0 + ((wx - xlim[0]) / (xlim[1] - xlim[0])) * r.w,
+    r.y1 - ((wy - ylim[0]) / (ylim[1] - ylim[0])) * r.h,
+  ];
 }
 
 function screenToWorld(sx, sy, xlim, ylim, w, h) {
-  return [xlim[0] + (sx / w) * (xlim[1] - xlim[0]), ylim[0] + ((h - sy) / h) * (ylim[1] - ylim[0])];
+  const r = plotRect(w, h);
+  return [
+    xlim[0] + ((sx - r.x0) / r.w) * (xlim[1] - xlim[0]),
+    ylim[0] + ((r.y1 - sy) / r.h) * (ylim[1] - ylim[0]),
+  ];
+}
+
+/** Tick label formatting that adapts to the displayed range. */
+function fmtTick(v, range) {
+  const a = Math.abs(v);
+  if (a !== 0 && (a < 1e-3 || a >= 1e5)) return v.toExponential(1);
+  const dec = range >= 20 ? 0 : range >= 2 ? 1 : range >= 0.2 ? 2 : 3;
+  const s = v.toFixed(dec);
+  return s === "-0" || /^-0\.0*$/.test(s) ? s.slice(1) : s;
 }
 
 function drawAxes(ctx, w, h, xlim, ylim, xlabel, ylabel) {
-  const pad = 30;
-  ctx.strokeStyle = "#333";
+  const r = plotRect(w, h);
+  const xr = xlim[1] - xlim[0];
+  const yr = ylim[1] - ylim[0];
+  const nx = 5;
+  const ny = 5;
+
+  // ── plot background ──
+  ctx.fillStyle = NTMF_PALETTE.plot_bg;
+  ctx.fillRect(r.x0, r.y0, r.w, r.h);
+
+  // ── grid ──
+  ctx.strokeStyle = NTMF_PALETTE.grid;
+  ctx.lineWidth = 0.5;
+  for (let i = 0; i <= nx; i++) {
+    const sx = r.x0 + (i / nx) * r.w;
+    ctx.beginPath(); ctx.moveTo(sx, r.y0); ctx.lineTo(sx, r.y1); ctx.stroke();
+  }
+  for (let i = 0; i <= ny; i++) {
+    const sy = r.y1 - (i / ny) * r.h;
+    ctx.beginPath(); ctx.moveTo(r.x0, sy); ctx.lineTo(r.x1, sy); ctx.stroke();
+  }
+
+  // ── zero lines, only when strictly inside the view ──
+  const dashOn = () => { if (ctx.setLineDash) ctx.setLineDash([4, 3]); };
+  const dashOff = () => { if (ctx.setLineDash) ctx.setLineDash([]); };
+  ctx.strokeStyle = NTMF_PALETTE.zero_line;
   ctx.lineWidth = 1;
-  const zeroY = worldToScreen(0, 0, xlim, ylim, w, h)[1];
-  if (zeroY >= pad && zeroY <= h - pad) {
-    ctx.beginPath(); ctx.moveTo(pad, zeroY); ctx.lineTo(w - pad, zeroY); ctx.stroke();
+  if (ylim[0] < 0 && ylim[1] > 0) {
+    const sy = worldToScreen(xlim[0], 0, xlim, ylim, w, h)[1];
+    dashOn();
+    ctx.beginPath(); ctx.moveTo(r.x0, sy); ctx.lineTo(r.x1, sy); ctx.stroke();
+    dashOff();
   }
-  const zeroX = worldToScreen(0, 0, xlim, ylim, w, h)[0];
-  if (zeroX >= pad && zeroX <= w - pad) {
-    ctx.beginPath(); ctx.moveTo(zeroX, pad); ctx.lineTo(zeroX, h - pad); ctx.stroke();
+  if (xlim[0] < 0 && xlim[1] > 0) {
+    const sx = worldToScreen(0, ylim[0], xlim, ylim, w, h)[0];
+    dashOn();
+    ctx.beginPath(); ctx.moveTo(sx, r.y0); ctx.lineTo(sx, r.y1); ctx.stroke();
+    dashOff();
   }
-  ctx.strokeStyle = "#e9ecef"; ctx.lineWidth = 0.5;
-  const nx = 5, ny = 5;
+
+  // ── axis frame: always drawn, independent of where 0 falls ──
+  ctx.strokeStyle = NTMF_PALETTE.axis;
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.rect(r.x0 + 0.5, r.y0 + 0.5, r.w - 1, r.h - 1);
+  ctx.stroke();
+
+  // ── ticks ──
+  ctx.strokeStyle = NTMF_PALETTE.axis;
+  ctx.lineWidth = 1;
   for (let i = 0; i <= nx; i++) {
-    const x = xlim[0] + (i / nx) * (xlim[1] - xlim[0]);
-    const sx = worldToScreen(x, 0, xlim, ylim, w, h)[0];
-    ctx.beginPath(); ctx.moveTo(sx, pad); ctx.lineTo(sx, h - pad); ctx.stroke();
+    const sx = r.x0 + (i / nx) * r.w;
+    ctx.beginPath(); ctx.moveTo(sx, r.y1); ctx.lineTo(sx, r.y1 + 5); ctx.stroke();
   }
   for (let i = 0; i <= ny; i++) {
-    const y = ylim[0] + (i / ny) * (ylim[1] - ylim[0]);
-    const sy = worldToScreen(0, y, xlim, ylim, w, h)[1];
-    ctx.beginPath(); ctx.moveTo(pad, sy); ctx.lineTo(w - pad, sy); ctx.stroke();
+    const sy = r.y1 - (i / ny) * r.h;
+    ctx.beginPath(); ctx.moveTo(r.x0, sy); ctx.lineTo(r.x0 - 5, sy); ctx.stroke();
   }
-  ctx.fillStyle = "#666"; ctx.font = "10px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "top";
+
+  // ── tick labels, drawn outside the data area ──
+  ctx.fillStyle = NTMF_PALETTE.tick_text;
+  ctx.font = "10px sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
   for (let i = 0; i <= nx; i++) {
-    const x = xlim[0] + (i / nx) * (xlim[1] - xlim[0]);
-    ctx.fillText(x.toFixed(1), worldToScreen(x, ylim[0], xlim, ylim, w, h)[0], h - pad + 2);
+    const x = xlim[0] + (i / nx) * xr;
+    ctx.fillText(fmtTick(x, xr), r.x0 + (i / nx) * r.w, r.y1 + 7);
   }
-  ctx.textAlign = "right"; ctx.textBaseline = "middle";
+  ctx.textAlign = "right";
+  ctx.textBaseline = "middle";
   for (let i = 0; i <= ny; i++) {
-    const y = ylim[0] + (i / ny) * (ylim[1] - ylim[0]);
-    ctx.fillText(y.toFixed(1), pad - 4, worldToScreen(xlim[0], y, xlim, ylim, w, h)[1]);
+    const y = ylim[0] + (i / ny) * yr;
+    ctx.fillText(fmtTick(y, yr), r.x0 - 8, r.y1 - (i / ny) * r.h);
   }
+
+  // ── axis titles ──
+  ctx.fillStyle = NTMF_PALETTE.axis;
   if (xlabel) {
-    ctx.textAlign = "center"; ctx.textBaseline = "bottom"; ctx.font = "bold 11px sans-serif";
-    ctx.fillText(xlabel, w / 2, h - 4);
+    ctx.textAlign = "center"; ctx.textBaseline = "bottom";
+    ctx.font = "bold 12px sans-serif";
+    ctx.fillText(xlabel, (r.x0 + r.x1) / 2, h - 6);
   }
   if (ylabel) {
-    ctx.save(); ctx.translate(12, h / 2); ctx.rotate(-Math.PI / 2);
-    ctx.textAlign = "center"; ctx.textBaseline = "top"; ctx.font = "bold 11px sans-serif";
-    ctx.fillText(ylabel, 0, 0); ctx.restore();
+    ctx.save();
+    ctx.translate(14, (r.y0 + r.y1) / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.textAlign = "center"; ctx.textBaseline = "top";
+    ctx.font = "bold 12px sans-serif";
+    ctx.fillText(ylabel, 0, 0);
+    ctx.restore();
   }
 }
 
@@ -14751,7 +14876,9 @@ export function render({ model, el }) {
           <button class="ppw-editor-toggle">✏️ Custom Model</button>
         </div>
         <div class="ppw-export-row">
-          <button class="ppw-export-svg">Export SVG</button>
+          <button class="ppw-export-svg" title="Phase plane with embedded legend">Phase plane SVG</button>
+          <button class="ppw-export-ts-svg" title="Time series panel">Time series SVG</button>
+          <button class="ppw-export-combined" title="Both panels + shared legend, ready for the manuscript">Combined figure</button>
           <button class="ppw-export-tikz">Export TikZ</button>
         </div>
       </div>
@@ -14789,12 +14916,13 @@ export function render({ model, el }) {
           </div>
           <canvas class="ppw-phase-canvas" width="500" height="500"></canvas>
           <div class="ppw-legend">
-            <div class="ppw-legend-item"><div class="ppw-legend-line" style="background:#2196F3"></div> dX/dt = 0</div>
-            <div class="ppw-legend-item"><div class="ppw-legend-line" style="background:#f44336"></div> dY/dt = 0</div>
-            <div class="ppw-legend-item"><div class="ppw-legend-line" style="background:#4CAF50"></div> Trajectory</div>
-            <div class="ppw-legend-item"><div class="ppw-legend-dot" style="background:#4CAF50"></div> Stable</div>
-            <div class="ppw-legend-item"><div class="ppw-legend-dot" style="background:#f44336"></div> Unstable</div>
-            <div class="ppw-legend-item"><div class="ppw-legend-dot" style="background:#9C27B0"></div> Saddle</div>
+            <div class="ppw-legend-item"><div class="ppw-legend-line ppw-legend-nc-x"></div> <span class="ppw-legend-nc-x-label">dX/dt = 0</span></div>
+            <div class="ppw-legend-item"><div class="ppw-legend-line ppw-legend-nc-y"></div> <span class="ppw-legend-nc-y-label">dY/dt = 0</span></div>
+            <div class="ppw-legend-item"><div class="ppw-legend-line ppw-legend-traj"></div> Trajectory</div>
+            <div class="ppw-legend-item"><div class="ppw-legend-dot ppw-legend-ic"></div> Initial condition</div>
+            <div class="ppw-legend-item"><div class="ppw-legend-dot ppw-legend-fp-stable"></div> Stable</div>
+            <div class="ppw-legend-item"><div class="ppw-legend-dot ppw-legend-fp-unstable"></div> Unstable</div>
+            <div class="ppw-legend-item"><div class="ppw-legend-dot ppw-legend-fp-saddle"></div> Saddle</div>
           </div>
         </div>
         <div class="ppw-time-container">
@@ -14812,6 +14940,7 @@ export function render({ model, el }) {
           <label>Max: <input class="ppw-sweep-max" type="number"></label>
           <label>N: <input class="ppw-sweep-n" type="number" value="50" min="5" max="200"></label>
           <button class="ppw-sweep-btn">Run Sweep</button>
+          <button class="ppw-sweep-export" title="Save the sweep as SVG">Export SVG</button>
           <span class="ppw-sweep-status"></span>
         </div>
         <div class="ppw-sweep-progress">
@@ -14820,9 +14949,9 @@ export function render({ model, el }) {
         </div>
         <canvas class="ppw-sweep-canvas" width="700" height="300"></canvas>
         <div class="ppw-legend">
-          <div class="ppw-legend-item"><div class="ppw-legend-dot" style="background:#4CAF50"></div> Stable</div>
-          <div class="ppw-legend-item"><div class="ppw-legend-dot" style="background:#f44336"></div> Unstable</div>
-          <div class="ppw-legend-item"><div class="ppw-legend-dot" style="background:#9C27B0"></div> Saddle</div>
+          <div class="ppw-legend-item"><div class="ppw-legend-dot ppw-legend-fp-stable"></div> Stable</div>
+          <div class="ppw-legend-item"><div class="ppw-legend-dot ppw-legend-fp-unstable"></div> Unstable</div>
+          <div class="ppw-legend-item"><div class="ppw-legend-dot ppw-legend-fp-saddle"></div> Saddle</div>
         </div>
       </div>
     </div>
@@ -14958,12 +15087,77 @@ export function render({ model, el }) {
     if (!isStandalone) model.save_changes();
   }
 
+  // ── Legend (labels and swatches follow the current model) ──
+  // Display name for state variable `i`; falls back to the raw name.
+  function stateLabel(i) {
+    const labels = model.get("state_labels");
+    const names = model.get("state_names") || ["x", "y"];
+    if (Array.isArray(labels) && labels[i]) return labels[i];
+    return names[i] !== undefined ? names[i] : "x";
+  }
+
+  // Axis title: display name plus unit, e.g. "\u03bd_FS (Hz)".
+  function axisTitle(i) {
+    const units = model.get("state_units");
+    const unit = Array.isArray(units) && units[i] ? units[i] : "";
+    return unit ? `${stateLabel(i)} (${unit})` : stateLabel(i);
+  }
+
+  function updateLegend() {
+    const disp = model.get("display") || [0, 1];
+    const xi = disp[0] ?? 0;
+    const yi = disp.length > 1 ? disp[1] : 1;
+    const paint = (sel, prop, value) => {
+      const node = el.querySelector(sel);
+      if (node) node.style[prop] = value;
+    };
+    const label = (sel, text) => {
+      const node = el.querySelector(sel);
+      if (node) node.textContent = text;
+    };
+    paint(".ppw-legend-nc-x", "background", STATE_COLORS[xi % STATE_COLORS.length]);
+    paint(".ppw-legend-nc-y", "background", STATE_COLORS[yi % STATE_COLORS.length]);
+    label(".ppw-legend-nc-x-label", `d${stateLabel(xi)}/dt = 0`);
+    label(".ppw-legend-nc-y-label", `d${stateLabel(yi)}/dt = 0`);
+    paint(".ppw-legend-traj", "background", NTMF_PALETTE.trajectory);
+    paint(".ppw-legend-ic", "background", NTMF_PALETTE.initial_condition);
+    paint(".ppw-legend-ic", "borderColor", NTMF_PALETTE.ic_edge);
+    el.querySelectorAll(".ppw-legend-fp-stable").forEach((n) => {
+      n.style.background = STABILITY_COLORS.stable_node;
+      n.style.borderColor = STABILITY_COLORS.stable_node;
+    });
+    el.querySelectorAll(".ppw-legend-fp-unstable").forEach((n) => {
+      n.style.background = "#ffffff";
+      n.style.borderColor = STABILITY_COLORS.unstable_node;
+      n.style.borderWidth = "2px";
+    });
+    el.querySelectorAll(".ppw-legend-fp-saddle").forEach((n) => {
+      n.style.background = STABILITY_COLORS.saddle;
+      n.style.borderColor = STABILITY_COLORS.saddle;
+    });
+  }
+
   // ── Model selector ──
   function populateModelSelector() {
     const current = model.get("model_name");
-    modelSelect.innerHTML = MODEL_NAMES.map(
-      (m) => `<option value="${m}" ${m === current ? "selected" : ""}>${MODEL_LABELS[m]}</option>`,
+    const names = [...MODEL_NAMES];
+    const labels = { ...MODEL_LABELS };
+    // A model supplied from Python (e.g. NTMFMeanField) is not in the JS
+    // registry.  Register it here so the selector reports what is actually
+    // being integrated instead of silently falling back to Wilson-Cowan.
+    if (current && !names.includes(current)) {
+      names.unshift(current);
+      labels[current] = model.get("model_label") || current;
+    }
+    modelSelect.innerHTML = names.map(
+      (m) => `<option value="${m}" ${m === current ? "selected" : ""}>${labels[m]}</option>`,
     ).join("");
+    // In python_compute mode the JS registry cannot evaluate the Python
+    // right-hand side, so switching models would silently break the plot.
+    modelSelect.disabled = !!model.get("python_compute");
+    modelSelect.title = modelSelect.disabled
+      ? "Model is defined in Python (python_compute=True) and cannot be switched here."
+      : "";
   }
 
   modelSelect.addEventListener("change", () => {
@@ -15017,8 +15211,14 @@ export function render({ model, el }) {
   // ── Parameter sliders ──
   function createParamSliders(paramInfo, currentParams) {
     paramsDiv.innerHTML = "";
+    paramsDiv.classList.remove("ppw-params-grid");
+    paramsDiv.style.gridTemplateColumns = "";
     if (!paramInfo || Object.keys(paramInfo).length === 0) return;
-    for (const [name, [min, max, defaultVal, desc]] of Object.entries(paramInfo)) {
+
+    const makeSlider = (name) => {
+      const spec = paramInfo[name];
+      if (!spec) return null;
+      const [min, max, defaultVal, desc] = spec;
       const value = currentParams[name] !== undefined ? currentParams[name] : defaultVal;
       const div = document.createElement("div");
       div.className = "ppw-param";
@@ -15027,7 +15227,48 @@ export function render({ model, el }) {
         <input type="range" class="ppw-param-slider" data-param="${name}"
           min="${min}" max="${max}" step="${(max - min) / 500}" value="${value}">
       `;
-      paramsDiv.appendChild(div);
+      return div;
+    };
+
+    // A model may declare `param_layout` as a list of rows.  Sliders are then
+    // placed on an explicit grid, so a row holding a single parameter leaves
+    // the rest of its row empty instead of being back-filled by the next row.
+    const rawLayout = model.get("param_layout");
+    const layout = Array.isArray(rawLayout) ? rawLayout.filter((r) => Array.isArray(r) && r.length) : [];
+
+    if (layout.length) {
+      const placed = new Set();
+      const nCols = Math.max(...layout.map((r) => r.length));
+      paramsDiv.classList.add("ppw-params-grid");
+      paramsDiv.style.gridTemplateColumns = `repeat(${nCols}, minmax(130px, 1fr))`;
+      layout.forEach((row, r) => {
+        row.forEach((name, c) => {
+          const div = makeSlider(name);
+          if (!div) return;
+          div.style.gridRow = String(r + 1);
+          div.style.gridColumn = String(c + 1);
+          paramsDiv.appendChild(div);
+          placed.add(name);
+        });
+      });
+      // Anything the layout forgot still gets a slider, appended after it.
+      let extraRow = layout.length;
+      let extraCol = 0;
+      for (const name of Object.keys(paramInfo)) {
+        if (placed.has(name)) continue;
+        const div = makeSlider(name);
+        if (!div) continue;
+        div.style.gridRow = String(extraRow + 1);
+        div.style.gridColumn = String(extraCol + 1);
+        paramsDiv.appendChild(div);
+        extraCol += 1;
+        if (extraCol >= nCols) { extraCol = 0; extraRow += 1; }
+      }
+    } else {
+      for (const name of Object.keys(paramInfo)) {
+        const div = makeSlider(name);
+        if (div) paramsDiv.appendChild(div);
+      }
     }
     paramsDiv.querySelectorAll(".ppw-param-slider").forEach((slider) => {
       let timeout;
@@ -15234,6 +15475,8 @@ export function render({ model, el }) {
     const sy = (e.clientY - rect.top) * scaleY;
     const xlim = model.get("xlim");
     const ylim = model.get("ylim");
+    const r = plotRect(phaseCanvas.width, phaseCanvas.height);
+    if (sx < r.x0 || sx > r.x1 || sy < r.y0 || sy > r.y1) return;  // margin click
     const [wx, wy] = screenToWorld(sx, sy, xlim, ylim, phaseCanvas.width, phaseCanvas.height);
     model.set("x0", wx);
     model.set("y0", wy);
@@ -15252,10 +15495,20 @@ export function render({ model, el }) {
     if (isNaN(min) || isNaN(max) || isNaN(nSweep) || nSweep < 2) return;
 
     sweepBtn.disabled = true;
+    sweepStatus.classList.remove('ppw-sweep-error');
     sweepStatus.innerHTML = '<span class="ppw-sweep-spinner"></span> Running...';
     sweepProgress.classList.add("visible");
     sweepProgressBar.style.width = "0%";
     sweepProgressText.textContent = "0%";
+
+    // A model supplied from Python has no compiled JS right-hand side, so the
+    // client-side sweep below would resolve MODELS[modelName] to undefined and
+    // throw.  Hand the whole sweep to the kernel instead.
+    if (model.get("python_compute") && !isStandalone) {
+      _sweepAbort = null;
+      model.send({ type: "run_sweep", param, min, max, n: nSweep });
+      return;
+    }
 
     const modelName = model.get("model_name");
     const params = model.get("params");
@@ -15349,21 +15602,27 @@ export function render({ model, el }) {
     const is1D = display.length === 1;
 
     ctx.clearRect(0, 0, w, h);
-    ctx.fillStyle = "#fafafa";
+    ctx.fillStyle = NTMF_PALETTE.canvas_bg;
     ctx.fillRect(0, 0, w, h);
+
+    // Nullclines inherit the colour of the population they belong to,
+    // so the phase plane stays consistent with the time-series panel.
+    const ncColorX = STATE_COLORS[display[0] % STATE_COLORS.length];
+    const ncColorY = STATE_COLORS[(display.length > 1 ? display[1] : 1) % STATE_COLORS.length];
+    const rect = plotRect(w, h);
 
     if (is1D) {
       // 1-D mode: draw dx/dt vs x
-      drawAxes(ctx, w, h, xlim, [-2, 2], stateNames[display[0]], "d" + stateNames[display[0]] + "/dt");
+      drawAxes(ctx, w, h, xlim, [-2, 2], axisTitle(display[0]), "d" + stateLabel(display[0]) + "/dt");
     } else {
-      drawAxes(ctx, w, h, xlim, ylim, stateNames[display[0]], stateNames[display[1]]);
+      drawAxes(ctx, w, h, xlim, ylim, axisTitle(display[0]), axisTitle(display[1]));
     }
 
     // Nullclines
     if (model.get("show_nullclines")) {
       const ncX = model.get("nullcline_x");
       if (ncX && ncX.length > 0) {
-        ctx.fillStyle = "#2196F3";
+        ctx.fillStyle = ncColorX;
         for (const [wx, wy] of ncX) {
           const [sx, sy] = worldToScreen(wx, wy, xlim, ylim, w, h);
           ctx.beginPath(); ctx.arc(sx, sy, 1.8, 0, Math.PI * 2); ctx.fill();
@@ -15371,7 +15630,7 @@ export function render({ model, el }) {
       }
       const ncY = model.get("nullcline_y");
       if (ncY && ncY.length > 0) {
-        ctx.fillStyle = "#f44336";
+        ctx.fillStyle = ncColorY;
         for (const [wx, wy] of ncY) {
           const [sx, sy] = worldToScreen(wx, wy, xlim, ylim, w, h);
           ctx.beginPath(); ctx.arc(sx, sy, 1.8, 0, Math.PI * 2); ctx.fill();
@@ -15385,13 +15644,13 @@ export function render({ model, el }) {
       if (vf && vf.length > 0) {
         for (const [wx, wy, dx, dy] of vf) {
           const [sx, sy] = worldToScreen(wx, wy, xlim, ylim, w, h);
-          const screenDx = (dx / (xlim[1] - xlim[0])) * w;
-          const screenDy = (-dy / (ylim[1] - ylim[0])) * h;
+          const screenDx = (dx / (xlim[1] - xlim[0])) * rect.w;
+          const screenDy = (-dy / (ylim[1] - ylim[0])) * rect.h;
           const mag = Math.sqrt(screenDx * screenDx + screenDy * screenDy);
           if (mag < 1e-10) continue;
           const ndx = screenDx / mag, ndy = screenDy / mag;
           const arrowLen = Math.min(14, mag * 0.3);
-          drawArrow(ctx, sx, sy, sx + ndx * arrowLen, sy + ndy * arrowLen, "#ccc", 3);
+          drawArrow(ctx, sx, sy, sx + ndx * arrowLen, sy + ndy * arrowLen, NTMF_PALETTE.vector_field, 3);
         }
       }
     }
@@ -15411,7 +15670,12 @@ export function render({ model, el }) {
     if (model.get("show_trajectory")) {
       const traj = model.get("trajectory");
       if (traj && traj.length > 1) {
-        ctx.strokeStyle = "#4CAF50"; ctx.lineWidth = 1.5;
+        // Clip so long transients cannot spill over the tick labels.
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(rect.x0, rect.y0, rect.w, rect.h);
+        ctx.clip();
+        ctx.strokeStyle = NTMF_PALETTE.trajectory; ctx.lineWidth = 1.6;
         ctx.beginPath();
         const proj0 = [traj[0][display[0] + 1]];
         if (!is1D) proj0.push(traj[0][display[1] + 1]);
@@ -15428,25 +15692,258 @@ export function render({ model, el }) {
           ctx.lineTo(sx, sy);
         }
         ctx.stroke();
-        // Initial condition marker
+        // ── Initial condition marker (see legend) ──
+        // White halo first so the marker stays legible on top of a
+        // same-hue nullcline.
+        ctx.beginPath(); ctx.arc(sx0, sy0, 6.5, 0, Math.PI * 2);
+        ctx.fillStyle = NTMF_PALETTE.ic_ring; ctx.fill();
         ctx.beginPath(); ctx.arc(sx0, sy0, 5, 0, Math.PI * 2);
-        ctx.fillStyle = "#FF9800"; ctx.fill();
-        ctx.strokeStyle = "#333"; ctx.lineWidth = 1; ctx.stroke();
+        ctx.fillStyle = NTMF_PALETTE.initial_condition; ctx.fill();
+        ctx.strokeStyle = NTMF_PALETTE.ic_edge; ctx.lineWidth = 1.2; ctx.stroke();
+        ctx.restore();
       }
     }
   }
 
   function renderPhasePlane() {
+    updateLegend();
     _drawPhasePlane(phaseCtx, phaseCanvas.width, phaseCanvas.height);
   }
 
+  // Draw the phase-plane legend directly onto a context, at (x, y) top-left.
+  // Returns the height consumed, so callers can size their canvas.
+  function drawPhaseLegend(ctx, x, y, opts) {
+    opts = opts || {};
+    const disp = model.get("display") || [0, 1];
+    const xi = disp[0] ?? 0;
+    const yi = disp.length > 1 ? disp[1] : 1;
+    const cX = STATE_COLORS[xi % STATE_COLORS.length];
+    const cY = STATE_COLORS[yi % STATE_COLORS.length];
+    const rowH = 18;
+    const items = [
+      { kind: "line", color: cX, text: `d${stateLabel(xi)}/dt = 0` },
+      { kind: "line", color: cY, text: `d${stateLabel(yi)}/dt = 0` },
+      { kind: "line", color: NTMF_PALETTE.trajectory, text: "Trajectory" },
+      { kind: "ic", text: "Initial condition" },
+      { kind: "fp", fill: STABILITY_COLORS.stable_node, edge: STABILITY_COLORS.stable_node, text: "Stable" },
+      { kind: "fp", fill: "#ffffff", edge: STABILITY_COLORS.unstable_node, text: "Unstable" },
+      { kind: "fp", fill: STABILITY_COLORS.saddle, edge: STABILITY_COLORS.saddle, text: "Saddle" },
+    ];
+    // Two columns keep the block compact next to the plot.
+    const cols = opts.columns || 1;
+    const perCol = Math.ceil(items.length / cols);
+    const colW = opts.colW || 150;
+    ctx.font = "11px sans-serif";
+    ctx.textBaseline = "middle";
+    ctx.textAlign = "left";
+    items.forEach((it, i) => {
+      const col = Math.floor(i / perCol);
+      const row = i % perCol;
+      const ix = x + col * colW;
+      const iy = y + row * rowH + rowH / 2;
+      if (it.kind === "line") {
+        ctx.strokeStyle = it.color; ctx.lineWidth = 2.5;
+        ctx.beginPath(); ctx.moveTo(ix, iy); ctx.lineTo(ix + 18, iy); ctx.stroke();
+      } else if (it.kind === "ic") {
+        ctx.beginPath(); ctx.arc(ix + 9, iy, 5.5, 0, Math.PI * 2);
+        ctx.fillStyle = NTMF_PALETTE.ic_ring; ctx.fill();
+        ctx.beginPath(); ctx.arc(ix + 9, iy, 4.5, 0, Math.PI * 2);
+        ctx.fillStyle = NTMF_PALETTE.initial_condition; ctx.fill();
+        ctx.strokeStyle = NTMF_PALETTE.ic_edge; ctx.lineWidth = 1.2; ctx.stroke();
+      } else if (it.kind === "fp") {
+        ctx.beginPath(); ctx.arc(ix + 9, iy, 5, 0, Math.PI * 2);
+        ctx.fillStyle = it.fill; ctx.fill();
+        ctx.strokeStyle = it.edge; ctx.lineWidth = it.fill === "#ffffff" ? 2 : 1; ctx.stroke();
+      }
+      ctx.fillStyle = "#1a1a1a";
+      ctx.fillText(it.text, ix + 24, iy);
+    });
+    return perCol * rowH;
+  }
+
+  // Render the phase plane into a fresh context that includes a title strip
+  // and an in-figure legend, for standalone figures.
+  function _drawPhasePlaneFigure(ctx, w, h, opts) {
+    opts = opts || {};
+    const legendH = 7 * 18 + 8;               // one-column legend
+    const plotH = h - (opts.legendBelow ? legendH : 0);
+    ctx.fillStyle = NTMF_PALETTE.canvas_bg;
+    ctx.fillRect(0, 0, w, h);
+    _drawPhasePlane(ctx, w, plotH);
+    if (opts.legendBelow) {
+      drawPhaseLegend(ctx, PLOT_MARGIN.left, plotH + 4, { columns: 4, colW: (w - 2 * PLOT_MARGIN.left) / 4 });
+    }
+  }
+
   function exportToSVG() {
+    // Reserve a strip under the plot for the legend so it is embedded in the
+    // SVG rather than living only in the surrounding HTML.
     const w = phaseCanvas.width;
-    const h = phaseCanvas.height;
+    const legendH = 7 * 18 + 8;
+    const h = phaseCanvas.height + legendH;
     const c2s = new C2S(w, h);
-    _drawPhasePlane(c2s, w, h);
+    _drawPhasePlaneFigure(c2s, w, h, { legendBelow: true });
     const svg = c2s.getSerializedSvg(true);
     downloadBlob(new Blob([svg], { type: "image/svg+xml" }), "phase_plane.svg");
+  }
+
+  // Draw the time-series curves into an explicit plot rectangle `pr`
+  // ({x0,y0,x1,y1}), so it can share the phase plane's horizontal extent in a
+  // stacked figure. `opts.compact` shrinks fonts/labels for the 1/3-height row.
+  function _drawTimeSeriesInRect(ctx, pr, opts) {
+    opts = opts || {};
+    const traj = model.get("trajectory");
+    const stateNames = model.get("state_names");
+    if (!traj || traj.length < 2) return;
+    const pw = pr.x1 - pr.x0, ph = pr.y1 - pr.y0;
+    const tVals = traj.map((r) => r[0]);
+    const tMin = tVals[0], tMax = tVals[tVals.length - 1];
+
+    let yMin = Infinity, yMax = -Infinity;
+    for (let d = 0; d < stateNames.length; d++) {
+      for (const r of traj) { yMin = Math.min(yMin, r[d + 1]); yMax = Math.max(yMax, r[d + 1]); }
+    }
+    if (yMin === yMax) { yMin -= 0.5; yMax += 0.5; }
+    const ym = (yMax - yMin) * 0.1; yMin -= ym; yMax += ym;
+
+    const sx = (t) => pr.x0 + ((t - tMin) / (tMax - tMin)) * pw;
+    const sy = (v) => pr.y1 - ((v - yMin) / (yMax - yMin)) * ph;
+    const nt = 5, ny = opts.compact ? 2 : 4;
+
+    // background + grid
+    ctx.fillStyle = NTMF_PALETTE.plot_bg; ctx.fillRect(pr.x0, pr.y0, pw, ph);
+    ctx.strokeStyle = NTMF_PALETTE.grid; ctx.lineWidth = 0.5;
+    for (let i = 0; i <= nt; i++) { const x = sx(tMin + (i / nt) * (tMax - tMin)); ctx.beginPath(); ctx.moveTo(x, pr.y0); ctx.lineTo(x, pr.y1); ctx.stroke(); }
+    for (let i = 0; i <= ny; i++) { const y = sy(yMin + (i / ny) * (yMax - yMin)); ctx.beginPath(); ctx.moveTo(pr.x0, y); ctx.lineTo(pr.x1, y); ctx.stroke(); }
+
+    // frame
+    ctx.strokeStyle = NTMF_PALETTE.axis; ctx.lineWidth = 1.2;
+    ctx.strokeRect(pr.x0 + 0.5, pr.y0 + 0.5, pw - 1, ph - 1);
+
+    // ticks
+    ctx.fillStyle = NTMF_PALETTE.tick_text; ctx.font = "10px sans-serif";
+    ctx.textAlign = "center"; ctx.textBaseline = "top";
+    for (let i = 0; i <= nt; i++) { const t = tMin + (i / nt) * (tMax - tMin); ctx.fillText(fmtTick(t, tMax - tMin), sx(t), pr.y1 + 4); }
+    ctx.textAlign = "right"; ctx.textBaseline = "middle";
+    for (let i = 0; i <= ny; i++) { const v = yMin + (i / ny) * (yMax - yMin); ctx.fillText(fmtTick(v, yMax - yMin), pr.x0 - 6, sy(v)); }
+
+    // curves (clipped to the rect)
+    ctx.save(); ctx.beginPath(); ctx.rect(pr.x0, pr.y0, pw, ph); ctx.clip();
+    for (let d = 0; d < stateNames.length; d++) {
+      ctx.strokeStyle = STATE_COLORS[d % STATE_COLORS.length]; ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      traj.forEach((r, i) => { const X = sx(r[0]), Y = sy(r[d + 1]); i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); });
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // axis titles
+    ctx.fillStyle = NTMF_PALETTE.axis; ctx.font = "bold 12px sans-serif";
+    ctx.textAlign = "center"; ctx.textBaseline = "bottom";
+    ctx.fillText(`Time (${model.get("time_unit") || "s"})`, (pr.x0 + pr.x1) / 2, pr.y1 + 34);
+    ctx.save(); ctx.translate(14, (pr.y0 + pr.y1) / 2); ctx.rotate(-Math.PI / 2);
+    ctx.textAlign = "center"; ctx.textBaseline = "top"; ctx.fillText(timeSeriesYLabel(), 0, 0); ctx.restore();
+
+    // inline legend (top-right, inside the rect)
+    if (!opts.hideLegend) {
+      let lx = pr.x1 - 74, ly = pr.y0 + 12;
+      for (let d = 0; d < stateNames.length; d++) {
+        ctx.strokeStyle = STATE_COLORS[d % STATE_COLORS.length]; ctx.lineWidth = 2.5;
+        ctx.beginPath(); ctx.moveTo(lx, ly + d * 15); ctx.lineTo(lx + 16, ly + d * 15); ctx.stroke();
+        ctx.fillStyle = "#1a1a1a"; ctx.font = "11px sans-serif"; ctx.textAlign = "left"; ctx.textBaseline = "middle";
+        ctx.fillText(stateLabel(d), lx + 21, ly + d * 15);
+      }
+    }
+  }
+
+  // Draw the phase plane into an explicit rectangle by temporarily aligning
+  // PLOT_MARGIN to it. Keeps a single source of truth for the plane renderer.
+  function _drawPhasePlaneInRect(ctx, W, H, pr) {
+    const saved = { ...PLOT_MARGIN };
+    PLOT_MARGIN.left = pr.x0;
+    PLOT_MARGIN.right = W - pr.x1;
+    PLOT_MARGIN.top = pr.y0;
+    PLOT_MARGIN.bottom = H - pr.y1;
+    try { _drawPhasePlane(ctx, W, H); }
+    finally { PLOT_MARGIN.left = saved.left; PLOT_MARGIN.right = saved.right; PLOT_MARGIN.top = saved.top; PLOT_MARGIN.bottom = saved.bottom; }
+  }
+
+  function exportSweepSVG() {
+    const results = model.get("sweep_results");
+    const fps = model.get("sweep_fixed_points");
+    if (!results || results.length === 0) {
+      alert("Run a parameter sweep first, then export it.");
+      return;
+    }
+    const w = sweepCanvas.width, h = sweepCanvas.height;
+    const c2s = new C2S(w, h);
+    _drawSweep(c2s, w, h, results, fps, model.get("sweep_param"));
+    const svg = c2s.getSerializedSvg(true);
+    downloadBlob(new Blob([svg], { type: "image/svg+xml" }), "bifurcation_sweep.svg");
+  }
+
+  function exportTimeSeriesSVG() {
+    const w = timeCanvas.width, h = timeCanvas.height;
+    const c2s = new C2S(w, h);
+    c2s.fillStyle = NTMF_PALETTE.canvas_bg; c2s.fillRect(0, 0, w, h);
+    _drawTimeSeries(c2s, w, h);
+    const svg = c2s.getSerializedSvg(true);
+    downloadBlob(new Blob([svg], { type: "image/svg+xml" }), "time_series.svg");
+  }
+
+  // Vertical stack: phase plane on top, time series (1/3 the plot height)
+  // beneath it. Both panels share the SAME left/right plot boundary so the
+  // horizontal extents line up exactly; a shared legend sits at the bottom.
+  function exportCombinedSVG() {
+    const traj = model.get("trajectory");
+    const hasTS = traj && traj.length > 1;
+
+    // One horizontal band, reused by both panels -> guaranteed alignment.
+    const W = phaseCanvas.width;
+    const plotLeft = 62;                       // room for y tick labels + title
+    const plotRight = W - 20;
+    const topPad = 22;                         // room for the "A" panel tag
+
+    const phasePlotH = phaseCanvas.height - PLOT_MARGIN.top - PLOT_MARGIN.bottom;
+    const tsPlotH = Math.round(phasePlotH / 3);
+    const tsAxisRoom = 46;                      // time axis ticks + "Time" title
+    const phaseAxisRoom = 44;
+    const gapY = 30;                            // between the two panels (+ "B" tag)
+    const legendH = 2 * 18 + 10;
+
+    const phaseTop = topPad;
+    const phaseRect = { x0: plotLeft, y0: phaseTop, x1: plotRight, y1: phaseTop + phasePlotH };
+    const tsTop = phaseRect.y1 + phaseAxisRoom + gapY;
+    const tsRect = { x0: plotLeft, y0: tsTop, x1: plotRight, y1: tsTop + tsPlotH };
+
+    const H = (hasTS ? tsRect.y1 + tsAxisRoom : phaseRect.y1 + phaseAxisRoom) + gapY + legendH;
+
+    const c2s = new C2S(W, H);
+    c2s.fillStyle = NTMF_PALETTE.canvas_bg; c2s.fillRect(0, 0, W, H);
+
+    // panel tags
+    c2s.fillStyle = "#1a1a1a"; c2s.font = "bold 14px sans-serif";
+    c2s.textAlign = "left"; c2s.textBaseline = "top";
+    c2s.fillText("A", 6, 4);
+
+    _drawPhasePlaneInRect(c2s, W, phaseRect.y1 + phaseAxisRoom, phaseRect);
+
+    let legendTop;
+    if (hasTS) {
+      c2s.fillStyle = "#1a1a1a"; c2s.font = "bold 14px sans-serif";
+      c2s.textAlign = "left"; c2s.textBaseline = "top";
+      c2s.fillText("B", 6, tsRect.y0 - 18);
+      _drawTimeSeriesInRect(c2s, tsRect, { compact: true });
+      legendTop = tsRect.y1 + tsAxisRoom + gapY - 8;
+    } else {
+      legendTop = phaseRect.y1 + phaseAxisRoom + gapY - 8;
+    }
+
+    drawPhaseLegend(c2s, plotLeft, legendTop,
+      { columns: 4, colW: (plotRight - plotLeft) / 4 });
+
+    const svg = c2s.getSerializedSvg(true);
+    downloadBlob(new Blob([svg], { type: "image/svg+xml" }), "phase_plane_figure.svg");
   }
 
   function downloadBlob(blob, filename) {
@@ -15460,13 +15957,28 @@ export function render({ model, el }) {
     URL.revokeObjectURL(url);
   }
 
+  // Y-axis title for the time series: use the shared unit when every shown
+  // state has the same one (firing rates -> "Rate (Hz)"), else generic.
+  function timeSeriesYLabel() {
+    const units = model.get("state_units");
+    const names = model.get("state_names") || [];
+    if (Array.isArray(units) && units.length >= names.length && names.length) {
+      const u = units[0];
+      if (u && units.slice(0, names.length).every((x) => x === u)) return `Rate (${u})`;
+    }
+    return "State";
+  }
+
   function renderTimeSeries() {
     if (displayMode === "phase_plane") return;
-    const w = timeCanvas.width, h = timeCanvas.height;
+    _drawTimeSeries(timeCtx, timeCanvas.width, timeCanvas.height);
+  }
+
+  function _drawTimeSeries(timeCtx, w, h) {
     const traj = model.get("trajectory");
     const stateNames = model.get("state_names");
     timeCtx.clearRect(0, 0, w, h);
-    timeCtx.fillStyle = "#fafafa"; timeCtx.fillRect(0, 0, w, h);
+    timeCtx.fillStyle = NTMF_PALETTE.canvas_bg; timeCtx.fillRect(0, 0, w, h);
     if (!traj || traj.length < 2) return;
 
     const tVals = traj.map((r) => r[0]);
@@ -15483,7 +15995,7 @@ export function render({ model, el }) {
     yMin -= yMargin; yMax += yMargin;
 
     // Grid
-    timeCtx.strokeStyle = "#e9ecef"; timeCtx.lineWidth = 0.5;
+    timeCtx.strokeStyle = NTMF_PALETTE.grid; timeCtx.lineWidth = 0.5;
     const nt = 5, ny = 4;
     for (let i = 0; i <= nt; i++) {
       const t = tMin + (i / nt) * (tMax - tMin);
@@ -15497,7 +16009,7 @@ export function render({ model, el }) {
     }
 
     // Axes
-    timeCtx.strokeStyle = "#333"; timeCtx.lineWidth = 1;
+    timeCtx.strokeStyle = NTMF_PALETTE.axis; timeCtx.lineWidth = 1.2;
     timeCtx.beginPath(); timeCtx.moveTo(pad, pad); timeCtx.lineTo(pad, h - pad); timeCtx.lineTo(w - pad, h - pad); timeCtx.stroke();
 
     // Ticks
@@ -15514,9 +16026,9 @@ export function render({ model, el }) {
     }
 
     timeCtx.textAlign = "center"; timeCtx.textBaseline = "bottom"; timeCtx.font = "bold 11px sans-serif";
-    timeCtx.fillText("Time", w / 2, h - 4);
+    timeCtx.fillText(`Time (${model.get("time_unit") || "s"})`, w / 2, h - 4);
     timeCtx.save(); timeCtx.translate(12, h / 2); timeCtx.rotate(-Math.PI / 2);
-    timeCtx.textAlign = "center"; timeCtx.textBaseline = "top"; timeCtx.fillText("State", 0, 0); timeCtx.restore();
+    timeCtx.textAlign = "center"; timeCtx.textBaseline = "top"; timeCtx.fillText(timeSeriesYLabel(), 0, 0); timeCtx.restore();
 
     // Curves
     for (let d = 0; d < stateNames.length; d++) {
@@ -15538,7 +16050,7 @@ export function render({ model, el }) {
       const color = STATE_COLORS[d % STATE_COLORS.length];
       timeCtx.fillStyle = color; timeCtx.fillRect(lx, ly + d * 16, 12, 3);
       timeCtx.fillStyle = "#333"; timeCtx.font = "11px sans-serif"; timeCtx.textAlign = "left"; timeCtx.textBaseline = "middle";
-      timeCtx.fillText(stateNames[d], lx + 16, ly + d * 16 + 1.5);
+      timeCtx.fillText(stateLabel(d), lx + 16, ly + d * 16 + 1.5);
     }
   }
 
@@ -15552,7 +16064,13 @@ export function render({ model, el }) {
   function _renderSweepData(_results, _fps, _paramName) {
     const w = sweepCanvas.width, h = sweepCanvas.height;
     sweepCtx.clearRect(0, 0, w, h);
-    sweepCtx.fillStyle = "#fafafa"; sweepCtx.fillRect(0, 0, w, h);
+    _drawSweep(sweepCtx, w, h, _results, _fps, _paramName);
+  }
+
+  // Context-agnostic sweep renderer, shared by the on-screen canvas and the
+  // SVG export.  (exportSweepSVG calls this with a C2S context.)
+  function _drawSweep(ctx, w, h, _results, _fps, _paramName) {
+    ctx.fillStyle = NTMF_PALETTE.canvas_bg; ctx.fillRect(0, 0, w, h);
     if (!_results || _results.length === 0) return;
 
     const paramValues = _results.map((r) => r.param_value);
@@ -15561,64 +16079,67 @@ export function render({ model, el }) {
     if (_fps && _fps.length > 0) {
       for (const [, x, y] of _fps) { yMin = Math.min(yMin, x, y); yMax = Math.max(yMax, x, y); }
     } else { yMin = -1; yMax = 1; }
+    if (!isFinite(yMin) || !isFinite(yMax) || yMin === yMax) { yMin = (yMin || 0) - 1; yMax = (yMax || 0) + 1; }
     const yMargin = (yMax - yMin) * 0.1; yMin -= yMargin; yMax += yMargin;
-    const pad = 35, plotW = w - 2 * pad, plotH = h - 2 * pad;
+    const pad = 42, plotW = w - 2 * pad, plotH = h - 2 * pad;
+    const pRange = pMax - pMin || 1, yRange = yMax - yMin || 1;
 
     // Regime shading
     if (_results.length > 1) {
-      const dp = (pMax - pMin) / (_results.length - 1);
+      const dp = pRange / (_results.length - 1);
       for (let i = 0; i < _results.length; i++) {
         const r = _results[i];
-        const color = REGIME_COLORS[r.regime] || "#f5f5f5";
-        const sx1 = pad + ((r.param_value - pMin) / (pMax - pMin)) * plotW;
-        const sx2 = pad + ((r.param_value + dp - pMin) / (pMax - pMin)) * plotW;
-        sweepCtx.fillStyle = color; sweepCtx.fillRect(sx1, pad, sx2 - sx1, plotH);
+        const color = REGIME_COLORS[r.regime] || NTMF_PALETTE.plot_bg;
+        const sx1 = pad + ((r.param_value - pMin) / pRange) * plotW;
+        const sx2 = pad + ((r.param_value + dp - pMin) / pRange) * plotW;
+        ctx.fillStyle = color; ctx.fillRect(sx1, pad, sx2 - sx1, plotH);
       }
     }
 
     // Grid
-    sweepCtx.strokeStyle = "#e9ecef"; sweepCtx.lineWidth = 0.5;
+    ctx.strokeStyle = NTMF_PALETTE.grid; ctx.lineWidth = 0.5;
     const np = 5, ny = 4;
     for (let i = 0; i <= np; i++) {
-      const p = pMin + (i / np) * (pMax - pMin);
-      const sx = pad + ((p - pMin) / (pMax - pMin)) * plotW;
-      sweepCtx.beginPath(); sweepCtx.moveTo(sx, pad); sweepCtx.lineTo(sx, h - pad); sweepCtx.stroke();
+      const sx = pad + (i / np) * plotW;
+      ctx.beginPath(); ctx.moveTo(sx, pad); ctx.lineTo(sx, h - pad); ctx.stroke();
     }
     for (let i = 0; i <= ny; i++) {
-      const y = yMin + (i / ny) * (yMax - yMin);
-      const sy = h - pad - ((y - yMin) / (yMax - yMin)) * plotH;
-      sweepCtx.beginPath(); sweepCtx.moveTo(pad, sy); sweepCtx.lineTo(w - pad, sy); sweepCtx.stroke();
+      const sy = h - pad - (i / ny) * plotH;
+      ctx.beginPath(); ctx.moveTo(pad, sy); ctx.lineTo(w - pad, sy); ctx.stroke();
     }
 
-    // Axes
-    sweepCtx.strokeStyle = "#333"; sweepCtx.lineWidth = 1;
-    sweepCtx.beginPath(); sweepCtx.moveTo(pad, pad); sweepCtx.lineTo(pad, h - pad); sweepCtx.lineTo(w - pad, h - pad); sweepCtx.stroke();
+    // Frame — closed rectangle, matching the other panels
+    ctx.strokeStyle = NTMF_PALETTE.axis; ctx.lineWidth = 1.2;
+    ctx.strokeRect(pad + 0.5, pad + 0.5, plotW - 1, plotH - 1);
 
     // Ticks
-    sweepCtx.fillStyle = "#666"; sweepCtx.font = "10px sans-serif"; sweepCtx.textAlign = "center"; sweepCtx.textBaseline = "top";
+    ctx.fillStyle = NTMF_PALETTE.tick_text; ctx.font = "10px sans-serif";
+    ctx.textAlign = "center"; ctx.textBaseline = "top";
     for (let i = 0; i <= np; i++) {
-      const p = pMin + (i / np) * (pMax - pMin);
-      sweepCtx.fillText(p.toFixed(1), pad + ((p - pMin) / (pMax - pMin)) * plotW, h - pad + 2);
+      const p = pMin + (i / np) * pRange;
+      ctx.fillText(fmtTick(p, pRange), pad + (i / np) * plotW, h - pad + 4);
     }
-    sweepCtx.textAlign = "right"; sweepCtx.textBaseline = "middle";
+    ctx.textAlign = "right"; ctx.textBaseline = "middle";
     for (let i = 0; i <= ny; i++) {
-      const y = yMin + (i / ny) * (yMax - yMin);
-      sweepCtx.fillText(y.toFixed(1), pad - 4, h - pad - ((y - yMin) / (yMax - yMin)) * plotH);
+      const y = yMin + (i / ny) * yRange;
+      ctx.fillText(fmtTick(y, yRange), pad - 6, h - pad - (i / ny) * plotH);
     }
 
-    sweepCtx.textAlign = "center"; sweepCtx.textBaseline = "bottom"; sweepCtx.font = "bold 11px sans-serif";
-    sweepCtx.fillText(_paramName || "Parameter", w / 2, h - 4);
-    sweepCtx.save(); sweepCtx.translate(12, h / 2); sweepCtx.rotate(-Math.PI / 2);
-    sweepCtx.textAlign = "center"; sweepCtx.textBaseline = "top"; sweepCtx.fillText("Fixed Point State", 0, 0); sweepCtx.restore();
+    // Axis titles
+    ctx.fillStyle = NTMF_PALETTE.axis;
+    ctx.textAlign = "center"; ctx.textBaseline = "bottom"; ctx.font = "bold 12px sans-serif";
+    ctx.fillText(_paramName || "Parameter", w / 2, h - 4);
+    ctx.save(); ctx.translate(13, h / 2); ctx.rotate(-Math.PI / 2);
+    ctx.textAlign = "center"; ctx.textBaseline = "top"; ctx.fillText("Fixed-point rate (Hz)", 0, 0); ctx.restore();
 
-    // Fixed points
+    // Fixed points (both state components per parameter value)
     if (_fps && _fps.length > 0) {
       for (const [pval, x, y, stability] of _fps) {
-        const sx = pad + ((pval - pMin) / (pMax - pMin)) * plotW;
-        const sy1 = h - pad - ((x - yMin) / (yMax - yMin)) * plotH;
-        const sy2 = h - pad - ((y - yMin) / (yMax - yMin)) * plotH;
-        drawFixedPointMarker(sweepCtx, sx, sy1, stability, 3);
-        drawFixedPointMarker(sweepCtx, sx, sy2, stability, 3);
+        const sx = pad + ((pval - pMin) / pRange) * plotW;
+        const sy1 = h - pad - ((x - yMin) / yRange) * plotH;
+        const sy2 = h - pad - ((y - yMin) / yRange) * plotH;
+        drawFixedPointMarker(ctx, sx, sy1, stability, 3);
+        drawFixedPointMarker(ctx, sx, sy2, stability, 3);
       }
     }
   }
@@ -15851,6 +16372,10 @@ export function render({ model, el }) {
   editorApplyBtn.addEventListener("click", applyEditor);
   editorCopyBtn.addEventListener("click", copySpec);
   el.querySelector(".ppw-export-svg").addEventListener("click", exportToSVG);
+  el.querySelector(".ppw-export-ts-svg").addEventListener("click", exportTimeSeriesSVG);
+  el.querySelector(".ppw-export-combined").addEventListener("click", exportCombinedSVG);
+  const sweepExportBtn = el.querySelector(".ppw-sweep-export");
+  if (sweepExportBtn) sweepExportBtn.addEventListener("click", exportSweepSVG);
 
   // TikZ export requires a live Python kernel; disabled in standalone.
   const tikzBtn = el.querySelector(".ppw-export-tikz");
@@ -15873,6 +16398,21 @@ export function render({ model, el }) {
         const blob = new Blob([msg.content], { type: 'application/x-tex' });
         downloadBlob(blob, msg.filename || 'phase_plane.tex');
       }
+      if (msg && msg.type === 'sweep_progress') {
+        const pct = Math.max(0, Math.min(100, Number(msg.pct) || 0));
+        sweepProgressBar.style.width = pct + "%";
+        sweepProgressText.textContent = pct + "%";
+      }
+      if (msg && msg.type === 'sweep_error') {
+        sweepStatus.textContent = String(msg.message || 'sweep failed');
+        sweepStatus.classList.add('ppw-sweep-error');
+      }
+      if (msg && msg.type === 'sweep_done') {
+        sweepBtn.disabled = false;
+        sweepProgress.classList.remove("visible");
+        if (!sweepStatus.classList.contains('ppw-sweep-error')) sweepStatus.innerHTML = "";
+        renderSweep();
+      }
     });
   }
 
@@ -15881,6 +16421,7 @@ export function render({ model, el }) {
   // ═════════════════════════════════════════════════════════════
 
   populateModelSelector();
+  updateLegend();
   createParamSliders(model.get("param_info"), model.get("params"));
   updateLimitInputs();
 
@@ -15952,6 +16493,11 @@ export function render({ model, el }) {
           renderPhasePlane();
           renderTimeSeries();
         }
+      });
+    });
+    ['sweep_results', 'sweep_fixed_points'].forEach((key) => {
+      model.on(`change:${key}`, () => {
+        if (model.get('python_compute')) renderSweep();
       });
     });
   }
