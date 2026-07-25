@@ -1,9 +1,9 @@
 """Phase-plane analysis adapter for the 2-population mean-field model."""
 
 import numpy as np
-from .phase_plane_widget.models import BaseModel
-from .meanfield import MFModel
-from .transfer_function import TF_template_sim
+from ntmf.phase_plane_widget.models import BaseModel
+from ntmf.meanfield import MFModel
+from ntmf.transfer_function import TF_template_sim
 
 
 class NTMFMeanField(BaseModel):
@@ -16,8 +16,11 @@ class NTMFMeanField(BaseModel):
     """
 
     name = "ntmf_meanfield"
+    display_name = "NTMFMeanField"
     dim = 2
     state_names = ["nu_FS", "nu_RS"]
+    state_labels = ["\u03bd_FS", "\u03bd_RS"]
+    state_units = ["Hz", "Hz"]
     default_xlim = [0.0, 100.0]
     default_ylim = [0.0, 100.0]
 
@@ -38,16 +41,35 @@ class NTMFMeanField(BaseModel):
         )
         self._last_key = None
 
-        # Parameters exposed to widget sliders
+        # Initial external-input rates come from the network config's ``rates``
+        # block, so the sliders start at the same operating point used to build
+        # the network (freq_exc_FS = 5 Hz, etc.) rather than at zero.  Each maps
+        # to one slider; a missing key falls back to 0.0.
+        rates = network_config.get("rates", {})
+
+        def _rate(key):
+            return float(rates.get(key, 0.0))
+
+        # Parameters exposed to widget sliders.  Insertion order is the
+        # fallback order used when ``param_layout`` is not honoured.
         self.param_info = {
-            "nu_ext_exc_FS": (0.0, 200.0, 0.0, "Ext. exc. → FS (Hz)"),
-            "nu_ext_exc_RS": (0.0, 200.0, 0.0, "Ext. exc. → RS (Hz)"),
-            "nu_ext_inh_FS": (0.0, 200.0, 0.0, "Ext. inh. → FS (Hz)"),
-            "nu_ext_inh_RS": (0.0, 200.0, 0.0, "Ext. inh. → RS (Hz)"),
-            "tau_f": (0.001, 0.1, tau_f, "τ_f (s)"),
+            "nu_ext_exc_FS": (0.0, 200.0, _rate("freq_exc_FS"), "Ext. exc. → FS (Hz)"),
+            "nu_ext_exc_RS": (0.0, 200.0, _rate("freq_exc_RS"), "Ext. exc. → RS (Hz)"),
+            "nu_ext_inh_FS": (0.0, 200.0, _rate("freq_inh_FS"), "Ext. inh. → FS (Hz)"),
+            "nu_ext_inh_RS": (0.0, 200.0, _rate("freq_inh_RS"), "Ext. inh. → RS (Hz)"),
             "alpha_FS": (0.5, 2.0, alphas["FS"], "TF scale FS"),
             "alpha_RS": (0.5, 2.0, alphas["RS"], "TF scale RS"),
+            "tau_f": (0.001, 0.1, tau_f, "τ_f (s)"),
         }
+
+        # Slider grid: column 1 is FS, column 2 is RS, tau_f is shared by both
+        # populations and sits on its own row.
+        self.param_layout = [
+            ["nu_ext_exc_FS", "nu_ext_exc_RS"],
+            ["nu_ext_inh_FS", "nu_ext_inh_RS"],
+            ["alpha_FS", "alpha_RS"],
+            ["tau_f"],
+        ]
         self.default_params = {k: v[2] for k, v in self.param_info.items()}
 
     def f(self, t, state, params):
