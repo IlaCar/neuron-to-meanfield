@@ -46,7 +46,7 @@ class ModelSpec:
 
     Examples
     --------
-    >>> from tvb_phaseplane.model_spec import ModelSpec
+    >>> from phase_plane_widget.model_spec import ModelSpec
     >>> m = ModelSpec.from_strings(
     ...     equations=['a*x - x**3 - y', 'x - b*y'],
     ...     state_vars={'x': (-3, 3), 'y': (-3, 3)},
