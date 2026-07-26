@@ -23,7 +23,7 @@ b2.start_scope()
 b2.seed(12345)
 
 # Defining duration of the stimulation
-sim_duration = 7 * b2.second
+sim_duration = 6 * b2.second
 dt = 0.1 * b2.ms  # time resolution
 times = b2.arange(0, sim_duration, dt)
 
@@ -65,7 +65,7 @@ external_input_exc_range = np.arange(0, 30.5, step_freq_exc) #Hz
 
 # Two seconds stimulation
 p_start = 2 * b2.second
-p_end = 5 * b2.second
+p_end = 4 * b2.second
 delay = 0 * b2.second
 
 input_interval = [(p_start / b2.second, p_end / b2.second)]
