@@ -168,3 +168,21 @@ def _build_spike_matrix(
             matrix[i, bin_idx] += 1
     matrix /= bin_size  # counts → rate in Hz
     return matrix
+
+# ---------------------------------------------------------------------------
+# Input generation
+# ---------------------------------------------------------------------------
+def generate_ou_process(time, dt, mu, tau, sigma, x0=None):
+    x = np.zeros_like(time)
+    x[0] = x0 if x0 is not None else mu
+    np.random.seed(0)
+    
+    # Pre-generate Gaussian noise for efficiency
+    noise = np.random.normal(0, 1, len(time))
+    
+    for i in range(1, len(time)):
+        dx = ((mu - x[i-1]) / tau) * dt + sigma * np.sqrt(dt) * noise[i]
+        x[i] = x[i-1] + dx
+        
+    # Rectify to prevent negative firing rates
+    return np.maximum(0, x)
