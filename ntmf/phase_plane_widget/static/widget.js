@@ -14301,8 +14301,12 @@ function validateFixedPoint(f, fp, params, classification) {
 }
 
 /** Draw a fixed-point marker whose shape encodes stability type. */
-function drawFixedPointMarker(ctx, sx, sy, stability, radius = 7) {
-  const color = STABILITY_COLORS[stability] || NTMF_PALETTE.axis;
+function drawFixedPointMarker(ctx, sx, sy, stability, radius = 7, colorOverride = null) {
+  // Stability is carried by the marker SHAPE (filled / open / target / diamond),
+  // so an optional colorOverride can repurpose the hue to encode something else
+  // (e.g. the population, in the bifurcation panel) without losing the
+  // stability information.
+  const color = colorOverride || STABILITY_COLORS[stability] || NTMF_PALETTE.axis;
   ctx.lineWidth = 1.5;
 
   switch (stability) {
@@ -16132,16 +16136,38 @@ export function render({ model, el }) {
     ctx.save(); ctx.translate(13, h / 2); ctx.rotate(-Math.PI / 2);
     ctx.textAlign = "center"; ctx.textBaseline = "top"; ctx.fillText("Fixed-point rate (Hz)", 0, 0); ctx.restore();
 
-    // Fixed points (both state components per parameter value)
+    // Fixed points: each row carries both components (ν_FS, ν_RS) of one fixed
+    // point.  The two components are colour-coded by population (ν*_FS, ν*_RS)
+    // following the usual scheme, while stability stays encoded by marker shape.
+    const colFS = STATE_COLORS[0];
+    const colRS = STATE_COLORS[1];
     if (_fps && _fps.length > 0) {
       for (const [pval, x, y, stability] of _fps) {
         const sx = pad + ((pval - pMin) / pRange) * plotW;
-        const sy1 = h - pad - ((x - yMin) / yRange) * plotH;
-        const sy2 = h - pad - ((y - yMin) / yRange) * plotH;
-        drawFixedPointMarker(ctx, sx, sy1, stability, 3);
-        drawFixedPointMarker(ctx, sx, sy2, stability, 3);
+        const syFS = h - pad - ((x - yMin) / yRange) * plotH;
+        const syRS = h - pad - ((y - yMin) / yRange) * plotH;
+        drawFixedPointMarker(ctx, sx, syFS, stability, 3, colFS);
+        drawFixedPointMarker(ctx, sx, syRS, stability, 3, colRS);
       }
     }
+
+    // Legend: population colours (top-left) + stability shapes (top-right).
+    const lx = pad + 8, ly = pad + 12;
+    const nameFS = stateLabel(0), nameRS = stateLabel(1);
+    ctx.font = "11px sans-serif"; ctx.textBaseline = "middle"; ctx.textAlign = "left";
+    drawFixedPointMarker(ctx, lx + 4, ly, "stable_node", 4, colFS);
+    ctx.fillStyle = "#1a1a1a"; ctx.fillText(`${nameFS}*`, lx + 14, ly);
+    drawFixedPointMarker(ctx, lx + 4, ly + 16, "stable_node", 4, colRS);
+    ctx.fillStyle = "#1a1a1a"; ctx.fillText(`${nameRS}*`, lx + 14, ly + 16);
+
+    // Stability key (shape only, drawn in neutral grey so it reads as shape).
+    const kx = w - pad - 118, ky = pad + 12, neutral = "#555";
+    const keyItems = [["stable_node", "stable"], ["unstable_node", "unstable"], ["saddle", "saddle"]];
+    keyItems.forEach(([st, lab], i) => {
+      const yy = ky + i * 16;
+      drawFixedPointMarker(ctx, kx + 4, yy, st, 4, neutral);
+      ctx.fillStyle = "#1a1a1a"; ctx.textAlign = "left"; ctx.fillText(lab, kx + 14, yy);
+    });
   }
 
   // ═════════════════════════════════════════════════════════════
