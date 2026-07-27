@@ -327,21 +327,9 @@ class PhasePlaneWidget(anywidget.AnyWidget):
         opts = dict(self.sweep_options or {})
         n_grid = int(opts.get("n_grid", 12))
         want_regime = bool(opts.get("detect_regime", False))
-        # The fixed-point search window is widened beyond the display window by
-        # this factor, so a branch that climbs out of the visible range as the
-        # parameter varies is still found rather than silently dropped.  A fixed
-        # point may exist at high rate even when the plot only shows [0, 80].
-        search_margin = float(opts.get("search_margin", 2.5))
 
         xlim = list(self.xlim)
         ylim = list(self.ylim)
-
-        def _expand(lim):
-            span = lim[1] - lim[0]
-            pad = 0.5 * span * (search_margin - 1.0)
-            return [lim[0] - pad, lim[1] + pad]
-
-        sxlim, sylim = _expand(xlim), _expand(ylim)
         values = [float(v) for v in values]
 
         results = []
@@ -352,14 +340,10 @@ class PhasePlaneWidget(anywidget.AnyWidget):
             p = {**self.params, param_name: val}
             try:
                 fps = model.find_fixed_points(
-                    p, sxlim, sylim, n_grid=n_grid, seeds=seeds
+                    p, xlim, ylim, n_grid=n_grid, seeds=seeds
                 )
             except TypeError:  # models.py predating the ``seeds`` argument
-                fps = model.find_fixed_points(p, sxlim, sylim, n_grid=n_grid)
-            # Seed the next step from this step's solutions, but keep seeding the
-            # grid too (models.py already appends the grid after the seeds), so a
-            # branch that disappears at a saddle-node does not pin the search to
-            # a stale solution for the rest of the sweep.
+                fps = model.find_fixed_points(p, xlim, ylim, n_grid=n_grid)
             seeds = [[fp[0], fp[1]] for fp in fps] or None
 
             if want_regime:
