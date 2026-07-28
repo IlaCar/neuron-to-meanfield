@@ -60,7 +60,7 @@ if __name__ == "__main__":
         print(f"{name:6s} final rate = {r[-1]:8.4f} Hz   (min {r.min():.3f}, max {r.max():.3f})")
 
     try:
-        from network_plots import plot_activity, plot_network
+        from network_MF_plots import plot_activity, plot_network
         plot_activity(out, out["net"], save_path=os.path.join(base, f"activity_{network_name}.png"))
         print("wrote activity.png")
         try:
@@ -69,4 +69,4 @@ if __name__ == "__main__":
         except ImportError:
             print("skipped network.png (networkx not installed)")
     except ImportError:
-        print("skipped figures (matplotlib not installed)")
+        print("skipped figures")
