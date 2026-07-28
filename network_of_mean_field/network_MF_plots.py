@@ -99,22 +99,22 @@ def plot_network(
     show: bool = False,
 ):
     """Connectivity graph: nodes coloured by type, edges by channel (exc/inh).
-
+ 
     Needs networkx. Populations are laid out per node cluster.
-
+ 
     Returns
     -------
     (fig, ax)
     """
     import matplotlib.pyplot as plt
     import networkx as nx
-
+ 
     palette = palette or TYPE_PALETTE
-    channel_colours = channel_colours or {"e": "#225ea5", "i": "#f46d43"}
-
+    channel_colours = channel_colours or {"e": "#006837", "i": "#a50026"}
+ 
     names = net["names"]
     pops = net["pops"]
-
+ 
     G = nx.DiGraph()
     for p in pops:
         G.add_node(p["name"], type=p["type"], node=p["node"])
@@ -124,7 +124,7 @@ def plot_network(
             src = names[pre_idx]
             G.add_edge(src, p["name"])
             edge_channel[(src, p["name"])] = channel
-
+ 
     # cluster layout: one circle of populations per node
     groups = _group_by_node(net)
     cluster_names = list(groups)
@@ -134,16 +134,20 @@ def plot_network(
     for k, node in enumerate(cluster_names):
         sub = G.subgraph([p["name"] for p in groups[node]])
         pos.update(nx.circular_layout(sub, center=cluster_pos[k], scale=2.0))
-
+ 
     node_colours = [palette.get(G.nodes[n]["type"], "#666666") for n in G.nodes]
     edge_colours = [channel_colours[edge_channel[e]] for e in G.edges]
-
+ 
+    node_size = 900
     fig, ax = plt.subplots(figsize=(9, 7))
-    nx.draw_networkx_nodes(G, pos, ax=ax, node_size=900, node_color=node_colours)
+    nx.draw_networkx_nodes(G, pos, ax=ax, node_size=node_size, node_color=node_colours)
     nx.draw_networkx_labels(G, pos, ax=ax, font_size=9)
     nx.draw_networkx_edges(
-        G, pos, ax=ax, edge_color=edge_colours, arrows=True, arrowsize=10,
-        width=1.3, connectionstyle="arc3,rad=-0.09",
+        G, pos, ax=ax, edge_color=edge_colours,
+        node_size=node_size,          # stop edges at the node boundary
+        arrows=True, arrowstyle="-|>", arrowsize=20,
+        width=1.6, min_target_margin=12,   # leave the arrowhead clear of the target node
+        connectionstyle="arc3,rad=0.16",   # curve reciprocal edges apart
     )
     # legends
     from matplotlib.lines import Line2D
@@ -155,10 +159,11 @@ def plot_network(
     ax.legend(handles=type_handles + chan_handles, fontsize=8, loc="upper right")
     ax.set_title("Network connectivity", fontsize=11)
     ax.axis("off")
-
+ 
     fig.tight_layout()
     if save_path:
         fig.savefig(save_path, dpi=150, bbox_inches="tight")
     if show:
         plt.show()
     return fig, ax
+
