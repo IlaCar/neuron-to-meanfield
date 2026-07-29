@@ -28,6 +28,8 @@ def plot_activity(
     palette: dict[str, str] | None = None,
     ncols: int = 2,
     figsize: tuple[float, float] | None = None,
+    xlim: tuple[float, float] | None = None,
+    ylim: tuple[float, float] | None = None,
     save_path: str | None = None,
     show: bool = False,
 ):
@@ -57,7 +59,7 @@ def plot_activity(
     time = out["time"]
     groups = _group_by_node(net)
     nodes = list(groups)
-
+   
     nrows = int(np.ceil(len(nodes) / ncols))
     figsize = figsize or (6.0 * ncols, 3.2 * nrows)
     fig, axes = plt.subplots(nrows, ncols, figsize=figsize, squeeze=False)
@@ -77,7 +79,12 @@ def plot_activity(
         ax.set_title(f"Node {node}", fontsize=10, fontweight="bold")
         ax.set_xlabel("time (s)", fontsize=8)
         ax.set_ylabel("firing rate (Hz)", fontsize=8)
-        ax.set_xlim(time[0], time[-1])
+        if xlim is None:
+            ax.set_xlim(time[0], time[-1])
+        else:
+            ax.set_xlim(xlim[0], xlim[1])
+        if ylim is not None:
+            ax.set_ylim(ylim[0], ylim[1])    
         ax.legend(fontsize=8, ncol=2)
 
     for ax in axes_flat[len(nodes):]:
