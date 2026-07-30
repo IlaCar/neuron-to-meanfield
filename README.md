@@ -1,4 +1,5 @@
 # BRIDGE
+![BRIDGE graphical abstract](utils/graphical_abstract.png)
 
 **A Computational Workflow from Single Neurons to Network of Mean-Field Models**
 
@@ -18,5 +19,3 @@ The workflow proceeds in stages:
    it against ground-truth spiking-network simulations.
 5. **Network of mean-fields** — couple validated mean-field nodes into networks of
    interacting populations.
-
-
