@@ -14951,7 +14951,7 @@ export function render({ model, el }) {
           <div class="ppw-sweep-progress-bar" style="width: 0%"></div>
           <span class="ppw-sweep-progress-text"></span>
         </div>
-        <canvas class="ppw-sweep-canvas" width="700" height="300"></canvas>
+        <canvas class="ppw-sweep-canvas" width="400" height="300"></canvas>
         <div class="ppw-legend">
           <div class="ppw-legend-item"><div class="ppw-legend-dot ppw-legend-fp-stable"></div> Stable</div>
           <div class="ppw-legend-item"><div class="ppw-legend-dot ppw-legend-fp-unstable"></div> Unstable</div>
