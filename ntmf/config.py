@@ -79,6 +79,40 @@ def get_params_model_SI(
         "tau_syn": m["tau_syn"] * 1e-3,
     }
 
+#-------------------------------------------------------------------    
+def get_params_EGLIF_SI(p):
+    params_SI={}
+    params_SI['C_m'] = p['C_m'] * 10**-12
+    params_SI['g_L'] = p['g_L'] * 10**-9
+    params_SI['E_L'] = p['E_L'] * 10**-3
+    params_SI['V_th'] = p['V_th'] * 10**-3
+    params_SI['V_reset'] = p['V_reset'] * 10**-3
+    params_SI['V_spike'] = p['V_spike'] * 10**-3
+    params_SI['delta_V'] = p['delta_V'] * 10**-3
+    params_SI['tau_V'] = p['tau_V'] * 10**-3
+    params_SI['lambda_0'] = p['lambda_0']
+    params_SI['t_ref'] = p['t_ref'] * 10**-3
+    params_SI['k_a'] = p['k_a']
+    params_SI['k_2'] = p['k_2'] * 10**3
+    params_SI['k_1'] = p['k_1'] * 10**3
+    params_SI['A_2'] = p['A_2'] * 10**-12
+    params_SI['A_1'] = p['A_1'] * 10**-12
+    params_SI['I_e'] = p['I_e'] * 10**-9
+    params_SI['E_e'] = p['E_e'] * 10**-3
+    params_SI['K_e'] = p['K_e']
+    params_SI['T_e'] = p['T_e'] * 10**-3
+    params_SI['Q_e'] = p['Q_e'] * 10**-9
+    params_SI['E_i'] = p['E_i'] * 10**-3
+    params_SI['K_i'] = p['K_i']
+    params_SI['T_i'] = p['T_i'] * 10**-3
+    params_SI['Q_i'] = p['Q_i'] * 10**-9
+
+    if 'Q_e_m' in p.keys():
+        params_SI['K_e_m'] = p['K_e_m']
+        params_SI['T_e_m'] = p['T_e_m'] * 10**-3
+        params_SI['Q_e_m'] = p['Q_e_m'] * 10**-9           
+    
+    return params_SI
 
 def get_syn_info(
     json_file_name: str | Path,

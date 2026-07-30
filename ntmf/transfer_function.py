@@ -17,6 +17,7 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 import scipy.special as sp_spec
+from scipy.optimize import minimize
 
 
 # ---------------------------------------------------------------------------
@@ -381,3 +382,394 @@ def get_mean_error_distribution(
             alpha=alpha, w_ad=w_slice,
         )
     return distr
+
+# ---------------------------------------------------------------------------
+# Membrane fluctuation EGLIF - GoC
+# ---------------------------------------------------------------------------
+def get_membrane_fluct_eglif_goc(fi_grid = None, 
+                                  fe_m_grid = None,
+                                  fe_grid = None,                                  
+                                  adapt = None,
+                                  params_SI = None):
+
+    Cm = params_SI['C_m'] # membrane capacitance
+    Gl = params_SI['g_L'] # leak condunctance
+    El = params_SI['E_L'] # leak equilibrium potential
+
+    # excitatory synapses
+    Qe_m = params_SI['Q_e_m']
+    Te_m = params_SI['T_e_m']
+    Ee = params_SI['E_e']
+    Ke_m = params_SI['K_e_m']
+
+    Qe = params_SI['Q_e']
+    Te = params_SI['T_e']
+    #Ee = params_SI['E_e'] #one Ee for both exc syn
+    Ke = params_SI['K_e']    
+    
+    # inhibitory synapses    
+    Qi = params_SI['Q_i']
+    Ti = params_SI['T_i']
+    Ei = params_SI['E_i']
+    Ki = params_SI['K_i']
+    
+    fi = fi_grid
+    fe_m = fe_m_grid
+    fe = fe_grid
+
+
+    # ---------------------------- Pop cond:  mu GrC and MLI ---------------------------------------
+    muGe, muGe_m, muGi = Qe * Ke * Te * fe, Qe_m * Ke_m * Te_m * fe_m, Qi * Ki * Ti * fi #EQUAL TO EXP
+    # ---------------------------- Input cond:  mu PC -----------------------------------------------
+    muG = Gl + muGe + muGe_m + muGi #EQUAL TO EXP
+    # ---------------------------- Membrane Fluctuation Properties ----------------------------------
+    muV = (np.e * (muGe * Ee + muGe_m * Ee + muGi * Ei + Gl * El) - adapt) / muG  # XX = adaptation
+
+    muGn, Tm = muG / Gl, Cm / muG  # normalization
+
+    Ue, Ue_m, Ui = Qe / muG * (Ee - muV), Qe_m / muG * (Ee - muV), Qi / muG * (Ei - muV) #EQUAL TO EXP
+
+
+
+    sigVe = (2 * Tm + Te) * ((np.e * Ue * Te)/ (2 * (Te + Tm))) ** 2 * Ke * fe
+    sigVe_m = (2 * Tm + Te_m) * ((np.e * Ue_m * Te_m) / (2 * (Te_m + Tm))) ** 2 * Ke_m * fe_m
+    sigVi = (2 * Tm + Ti) * ((np.e * Ui * Ti) / (2* (Ti + Tm))) ** 2 * Ki * fi
+
+    sigV = np.sqrt(sigVe + sigVe_m + sigVi)
+
+    fe_m, fe, fi = fe_m + 1e-15, fe + 1e-15, fi + 1e-15  # just to insure a non zero division
+
+    Tv_num= Ke * fe * Ue ** 2 * Te ** 2 * np.e ** 2 + \
+            Ke_m * fe_m * Ue_m ** 2 * Te_m ** 2 * np.e ** 2 + \
+            Ki * fi * Ui ** 2 * Ti ** 2 * np.e ** 2
+    Tv = 0.5 * Tv_num / ((sigV+1e-20) ** 2)
+
+
+    TvN = Tv * Gl / Cm  # normalization
+
+    return muGe, muGe_m, muGi, muG, muV, sigV+1e-20, muGn, TvN, Tv
+
+#-----------------------------------------------------------#
+#---------------------- GOLGI special ----------------------#
+#-----------------------------------------------------------#
+
+def fitting_Vthre_then_Freq_data_eglif_goc(muGe = None,
+                                            muGe_m = None,     
+                                            muGi = None,
+                                            muG = None,
+                                            muV = None,
+                                            sigV = None,
+                                            muGn = None,
+                                            TvN = None, 
+                                            Freq_data = None,
+                                            fe_m_grid = None, 
+                                            fe_grid = None,                                             
+                                            fi_grid  = None,
+                                            adapt = None,
+                                            params_SI = None, 
+                                            alpha = None,
+                                            maxiter=50000, xtol=1e-5, with_square_terms=True):
+    
+    Gl, Cm, El = params_SI['g_L'], params_SI['C_m'], params_SI['E_L']
+
+    muGe, muGe_m, muGi, muG, muV, sigV, muGn, TvN, Tv = get_membrane_fluct_eglif_goc(fi_grid = fi_grid,
+                                                                                       fe_m_grid = fe_m_grid,
+                                                                                       fe_grid = fe_grid,
+                                                                                       adapt = adapt,
+                                                                                       params_SI = params_SI)
+
+    freq_data_lim= Freq_data.max()
+
+    i_non_zeros = np.where((Freq_data > 0.) & (Freq_data < freq_data_lim))
+    print("Freq_data Limit: ", freq_data_lim)
+
+    Vthre_eff = effective_Vthre_EGLIF(Y = Freq_data[i_non_zeros],
+                                muV = muV[i_non_zeros], 
+                                sigV = sigV[i_non_zeros],
+                                TvN = TvN[i_non_zeros],
+                                Gl = params_SI['g_L'],
+                                Cm = params_SI['C_m'],
+                                alpha = alpha)
+
+    P = [-50e-3, 0, 0, 0, 0]
+
+    print("========== OPTIMIZATION STEP 1 ========== \nVthre Optimization")
+    
+    def Res(poly_coeff):
+        Vthre = threshold_func_EGLIF(*poly_coeff,
+                               muV = muV[i_non_zeros],
+                               sigV = sigV[i_non_zeros],
+                               TvN = TvN[i_non_zeros],
+                               muGn = muGn[i_non_zeros],
+                               )
+        
+        return np.mean((Vthre_eff - Vthre) ** 2)
+
+    plsq = minimize(Res, P, options={'disp': True})
+    P = plsq.x
+
+    print('========== P output from Vthreshold opt: ', P)
+
+    print("========== OPTIMIZATION STEP 2 ========== \nFreq_data Optimization")
+
+    def Res(poly_coeff):
+        return np.mean((Freq_data -
+                        TF_template_eglif_goc(*poly_coeff,
+                                          fe_m = fe_m_grid,
+                                          fe = fe_grid,
+                                          fi = fi_grid,
+                                          adapt = adapt, 
+                                          alpha = alpha,
+                                          params_SI = params_SI)) ** 2)
+
+
+    plsq = minimize(Res, P, method='nelder-mead',
+                    options={'xatol': xtol, 'disp': True, 'maxiter': maxiter})
+
+    P = plsq.x
+    print('========== P output from Freq_data opt: ', P)
+
+    print("========== END OF OPTIMIZATION PROCESS ==========")
+
+    params_SI['P'] = P
+
+    return P
+
+def get_membrane_fluct_eglif_goc(fi_grid = None, 
+                                  fe_m_grid = None,
+                                  fe_grid = None,                                  
+                                  adapt = None,
+                                  params_SI = None):
+
+    Cm = params_SI['C_m'] # membrane capacitance
+    Gl = params_SI['g_L'] # leak condunctance
+    El = params_SI['E_L'] # leak equilibrium potential
+
+    # excitatory synapses
+    Qe_m = params_SI['Q_e_m']
+    Te_m = params_SI['T_e_m']
+    Ee = params_SI['E_e']
+    Ke_m = params_SI['K_e_m']
+
+    Qe = params_SI['Q_e']
+    Te = params_SI['T_e']
+    #Ee = params_SI['E_e'] #one Ee for both exc syn
+    Ke = params_SI['K_e']    
+    
+    # inhibitory synapses    
+    Qi = params_SI['Q_i']
+    Ti = params_SI['T_i']
+    Ei = params_SI['E_i']
+    Ki = params_SI['K_i']
+    
+    fi = fi_grid
+    fe_m = fe_m_grid
+    fe = fe_grid
+
+
+    # ---------------------------- Pop cond:  mu GrC and MLI ---------------------------------------
+    muGe, muGe_m, muGi = Qe * Ke * Te * fe, Qe_m * Ke_m * Te_m * fe_m, Qi * Ki * Ti * fi #EQUAL TO EXP
+    # ---------------------------- Input cond:  mu PC -----------------------------------------------
+    muG = Gl + muGe + muGe_m + muGi #EQUAL TO EXP
+    # ---------------------------- Membrane Fluctuation Properties ----------------------------------
+    muV = (np.e * (muGe * Ee + muGe_m * Ee + muGi * Ei + Gl * El) - adapt) / muG  # XX = adaptation
+
+    muGn, Tm = muG / Gl, Cm / muG  # normalization
+
+    Ue, Ue_m, Ui = Qe / muG * (Ee - muV), Qe_m / muG * (Ee - muV), Qi / muG * (Ei - muV) #EQUAL TO EXP
+
+
+
+    sigVe = (2 * Tm + Te) * ((np.e * Ue * Te)/ (2 * (Te + Tm))) ** 2 * Ke * fe
+    sigVe_m = (2 * Tm + Te_m) * ((np.e * Ue_m * Te_m) / (2 * (Te_m + Tm))) ** 2 * Ke_m * fe_m
+    sigVi = (2 * Tm + Ti) * ((np.e * Ui * Ti) / (2* (Ti + Tm))) ** 2 * Ki * fi
+
+    sigV = np.sqrt(sigVe + sigVe_m + sigVi)
+
+    fe_m, fe, fi = fe_m + 1e-15, fe + 1e-15, fi + 1e-15  # just to insure a non zero division
+
+    Tv_num= Ke * fe * Ue ** 2 * Te ** 2 * np.e ** 2 + \
+            Ke_m * fe_m * Ue_m ** 2 * Te_m ** 2 * np.e ** 2 + \
+            Ki * fi * Ui ** 2 * Ti ** 2 * np.e ** 2
+    Tv = 0.5 * Tv_num / ((sigV+1e-20) ** 2)
+
+
+    TvN = Tv * Gl / Cm  # normalization
+
+    return muGe, muGe_m, muGi, muG, muV, sigV+1e-20, muGn, TvN, Tv
+
+def pseq_params_eglif_goc(params):
+
+    Qe, Qe_m = params['Q_e'], params['Q_e_m']
+    Te, Te_m, Ee = params['T_e'], params['T_e_m'], params['E_e']
+    Qi, Ti, Ei = params['Q_i'], params['T_i'], params['E_i']
+    Gl, Cm , El = params['g_L'], params['C_m'] , params['E_L']
+
+    Ke = params['K_e']
+    Ke_m = params['K_e_m']
+    Ki = params['K_i']
+
+    return Qe, Qe_m, Te, Te_m, Ee, Qi, Ti, Ei, Gl, Cm, El, Ke, Ke_m, Ki
+
+def TF_template_eglif_goc(P0, P1, P2, P3, P4,
+                      fe = None,
+                      fe_m = None,
+                      fi = None,
+                      adapt = None, 
+                      alpha = None,
+                      params_SI = None):
+    
+    # here TOTAL (sum over synapses) excitatory and inhibitory input
+    if hasattr(fe_m, "__len__"):
+        fe_m = np.where(fe_m < 1e-8, 1e-8, fe)
+    else:
+        fe_m = max(fe_m, 1e-8)
+    if hasattr(fe, "__len__"):
+        fe = np.where(fe < 1e-8, 1e-8, fe)
+    else:
+        fe = max(fe, 1e-8)
+    if hasattr(fi, "__len__"):
+        fi = np.where(fi < 1e-8, 1e-8, fi)
+    else:
+        fi = max(fi, 1e-8)
+
+    muGe, muGe_m, muGi, muG, muV, sigV, muGn, TvN, Tv = get_membrane_fluct_eglif_goc(fi_grid = fi,
+                                                                     fe_m_grid = fe_m,
+                                                                     fe_grid = fe,
+                                                                     adapt = adapt,
+                                                                     params_SI = params_SI)
+
+
+    Vthre = threshold_func_EGLIF(muV = muV,
+                           sigV = sigV,
+                           TvN = TvN,
+                           muGn = muGn,
+                           P0 = P0,
+                           P1 = P1,
+                           P2 = P2,
+                           P3 = P3,
+                           P4 = P4)
+
+
+    if (hasattr(muV, "__len__")):
+        # print("ttt",isinstance(muV, list), hasattr(muV, "__len__"))
+        sigV[sigV < 1e-4] = 1e-4
+    else:
+        if (sigV < 1e-4):
+            sigV = 1e-4
+
+    Fout_th = erfc_func_EGLIF(muV = muV,
+                        sigV = sigV,
+                        TvN = TvN,
+                        Vthre = Vthre,
+                        Gl = params_SI['g_L'],
+                        Cm = params_SI['C_m'],
+                        alpha = alpha)
+
+    if (hasattr(Fout_th, "__len__")):
+        # print("ttt",isinstance(muV, list), hasattr(muV, "__len__"))
+        Fout_th[Fout_th < 1e-8] = 1e-8
+    else:
+        if (Fout_th < 1e-8):
+            Fout_th = 1e-8
+
+    return Fout_th
+
+def effective_Vthre_EGLIF(Y = None,
+                    muV = None,
+                    sigV = None,
+                    TvN = None,
+                    Gl = None,
+                    Cm = None,
+                    alpha= None):
+
+    arg = (1 / alpha) * (Y * 2 * TvN * Cm / Gl)
+    print(f'min: {np.min(arg)}, max:{np.max(arg)}')
+    print(np.sum((arg <= 0) | (arg >= 2)), "invalid argument values")
+
+    Vthre_eff = muV + np.sqrt(2) * sigV * sp_spec.erfcinv((1 / alpha) * (Y * 2 * TvN * Cm / Gl))  # effective threshold
+
+    return Vthre_eff
+
+# Polynomial expression of V eff thre - initial condition
+def threshold_func_EGLIF(P0, P1, P2, P3, P4,
+                   muV = None,
+                   sigV = None,
+                   TvN = None,
+                   muGn = None):
+
+    # normalization factors as in Zerlaut et al., (2018)
+    muV0, DmuV0 = -60e-3, 10e-3
+    sigV0, DsigV0 = 4e-3, 6e-3
+    TvN0, DTvN0 = 0.5, 1.
+
+    Vthre =  P0 + \
+             P1 * (muV - muV0) / DmuV0 + \
+             P2 * (sigV - sigV0) / DsigV0 + \
+             P3 * (TvN - TvN0) / DTvN0 + \
+             P4 * np.log(muGn)
+    return Vthre
+
+def TF_template_EGLIF(P0, P1, P2, P3, P4,
+                      fe = None,
+                      fi = None,
+                      adapt = None, 
+                      alpha = None,
+                      params_SI = None):
+    
+    # here TOTAL (sum over synapses) excitatory and inhibitory input
+
+    if hasattr(fe, "__len__"):
+        fe = np.where(fe < 1e-8, 1e-8, fe)
+    else:
+        fe = max(fe, 1e-8)
+    if hasattr(fi, "__len__"):
+        fi = np.where(fi < 1e-8, 1e-8, fi)
+    else:
+        fi = max(fi, 1e-8)
+
+    muGe, muGi, muG, muV, sigV, muGn, TvN = get_membrane_fluct_eglif(fi_grid = fi,
+                                                                     fe_grid = fe,
+                                                                     adapt = adapt,
+                                                                     params_SI = params_SI)
+
+    Vthre = threshold_func(muV = muV,
+                           sigV = sigV,
+                           TvN = TvN,
+                           muGn = muGn,
+                           P0 = P0,
+                           P1 = P1,
+                           P2 = P2,
+                           P3 = P3,
+                           P4 = P4)
+
+    if hasattr(sigV, "__len__"):
+        sigV = np.where(sigV < 1e-4, 1e-4, sigV)
+    else:
+        sigV = max(sigV, 1e-4)
+
+    Fout_th = erfc_func(muV = muV,
+                        sigV = sigV,
+                        TvN = TvN,
+                        Vthre = Vthre,
+                        Gl = params_SI['g_L'],
+                        Cm = params_SI['C_m'],
+                        alpha = alpha)
+
+    if hasattr(Fout_th, "__len__"):
+        Fout_th = np.where(Fout_th < 1e-8, 1e-8, Fout_th)
+    else:
+        Fout_th = max(Fout_th, 1e-8)
+
+    return Fout_th    
+
+# EQUATION OF ERFC = vout = Fout = TF expression (Zerlaut et al. 2018)
+def erfc_func_EGLIF(muV = None,
+              sigV = None,
+              TvN = None,
+              Vthre = None,
+              Gl = None,
+              Cm= None, 
+              alpha = None):
+    
+    return .5 / TvN * Gl / Cm * (sp_spec.erfc((Vthre - muV) / np.sqrt(2) / sigV)) * alpha

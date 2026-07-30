@@ -2626,3 +2626,42 @@ def plot_TF_goodness_of_fit(df_dict, normalise='range', sigma_floor=0.1,
     ax.legend(loc='lower right', fontsize=8, frameon=False)
 
     return fig, summary
+
+def plot_TF_sliced_by_mossy(df, unique_mossy, unique_inh,
+                            exc_col='input_exc', inh_col='input_inh',
+                            mossy_col='input_exc_m',
+                            data_col='avg_f_out', fit_col='fit_rate',
+                            cmap='viridis', ncols=3,
+                            title='GoC transfer function (data vs fit), sliced by mossy input'):
+    """One panel per mossy value. x = granule excitation, colour = inhibition.
+    Markers = numerical data, solid line = analytical fit."""
+    n = len(unique_mossy)
+    ncols = min(ncols, n)
+    nrows = int(np.ceil(n / ncols))
+    fig, axes = plt.subplots(nrows, ncols, figsize=(5 * ncols, 4 * nrows),
+                             squeeze=False, sharex=True, sharey=True)
+    cols = plt.get_cmap(cmap)(np.linspace(0, 1, len(unique_inh)))
+    norm = plt.Normalize(vmin=float(np.min(unique_inh)), vmax=float(np.max(unique_inh)))
+    for k, m_val in enumerate(unique_mossy):
+        ax = axes[k // ncols][k % ncols]
+        sub = df[df[mossy_col] == m_val]
+        for inh_val, c in zip(unique_inh, cols):
+            mask = sub[inh_col] == inh_val
+            x = sub.loc[mask, exc_col].to_numpy()
+            order = np.argsort(x)
+            x = x[order]
+            y_data = sub.loc[mask, data_col].to_numpy()[order]
+            y_fit = sub.loc[mask, fit_col].to_numpy()[order]
+            ax.plot(x, y_data, 'o', color=c, alpha=0.5)
+            ax.plot(x, y_fit, '-', color=c)
+        ax.set_title(f'mossy = {m_val:.1f} Hz')
+        ax.set_xlabel('Excitatory input via granule (Hz)')
+        ax.set_ylabel('Output rate (Hz)')
+    for k in range(n, nrows * ncols):
+        axes[k // ncols][k % ncols].axis('off')
+    sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+    sm.set_array([])
+    fig.colorbar(sm, ax=axes, shrink=0.6, label='Inhibitory input (Hz)')
+    fig.suptitle(title)
+    return fig
+
