@@ -1,0 +1,298 @@
+{
+  "network": [
+    {
+      "name": "RS1",
+      "type": "RS",
+      "node": "N1",
+      "N": 8000,
+      "rate": 5
+    },
+    {
+      "name": "FS1",
+      "type": "FS",
+      "node": "N1",
+      "N": 2000,
+      "rate": 12
+    },
+    {
+      "name": "RS2",
+      "type": "RS",
+      "node": "N2",
+      "N": 8000,
+      "rate": 5
+    },
+    {
+      "name": "FS2",
+      "type": "FS",
+      "node": "N2",
+      "N": 2000,
+      "rate": 12
+    },
+    {
+      "name": "FS2b",
+      "type": "FS",
+      "node": "N2",
+      "N": 1000,
+      "rate": 10
+    },
+    {
+      "name": "RS3",
+      "type": "RS",
+      "node": "N3",
+      "N": 8000,
+      "rate": 5
+    },
+    {
+      "name": "RS3b",
+      "type": "RS",
+      "node": "N3",
+      "N": 4000,
+      "rate": 6
+    },
+    {
+      "name": "FS3",
+      "type": "FS",
+      "node": "N3",
+      "N": 3000,
+      "rate": 12
+    }
+  ],
+  "edges": [
+    {
+      "pre": "RS1",
+      "post": "FS1",
+      "probability": 0.05,
+      "strength": 1,
+      "delay": 0,
+      "receptor": "Glutamate"
+    },
+    {
+      "pre": "FS1",
+      "post": "RS1",
+      "probability": 0.05,
+      "strength": 1,
+      "delay": 0,
+      "receptor": "GABA"
+    },
+    {
+      "pre": "FS1",
+      "post": "FS1",
+      "probability": 0.05,
+      "strength": 1,
+      "delay": 0,
+      "receptor": "GABA"
+    },
+    {
+      "pre": "RS2",
+      "post": "FS2",
+      "probability": 0.05,
+      "strength": 1,
+      "delay": 0,
+      "receptor": "Glutamate"
+    },
+    {
+      "pre": "RS2",
+      "post": "FS2b",
+      "probability": 0.05,
+      "strength": 1,
+      "delay": 0,
+      "receptor": "Glutamate"
+    },
+    {
+      "pre": "FS2",
+      "post": "RS2",
+      "probability": 0.05,
+      "strength": 1,
+      "delay": 0,
+      "receptor": "GABA"
+    },
+    {
+      "pre": "FS2b",
+      "post": "RS2",
+      "probability": 0.05,
+      "strength": 1,
+      "delay": 0,
+      "receptor": "GABA"
+    },
+    {
+      "pre": "FS2",
+      "post": "FS2",
+      "probability": 0.05,
+      "strength": 1,
+      "delay": 0,
+      "receptor": "GABA"
+    },
+    {
+      "pre": "FS2b",
+      "post": "FS2b",
+      "probability": 0.05,
+      "strength": 1,
+      "delay": 0,
+      "receptor": "GABA"
+    },
+    {
+      "pre": "RS3",
+      "post": "FS3",
+      "probability": 0.05,
+      "strength": 1,
+      "delay": 0,
+      "receptor": "Glutamate"
+    },
+    {
+      "pre": "RS3b",
+      "post": "FS3",
+      "probability": 0.05,
+      "strength": 1,
+      "delay": 0,
+      "receptor": "Glutamate"
+    },
+    {
+      "pre": "FS3",
+      "post": "RS3",
+      "probability": 0.05,
+      "strength": 1,
+      "delay": 0,
+      "receptor": "GABA"
+    },
+    {
+      "pre": "FS3",
+      "post": "RS3b",
+      "probability": 0.05,
+      "strength": 1,
+      "delay": 0,
+      "receptor": "GABA"
+    },
+    {
+      "pre": "FS3",
+      "post": "FS3",
+      "probability": 0.05,
+      "strength": 1,
+      "delay": 0,
+      "receptor": "GABA"
+    },
+    {
+      "pre": "RS1",
+      "post": "RS2",
+      "probability": 0.05,
+      "strength": 1,
+      "delay": 2,
+      "receptor": "Glutamate"
+    },
+    {
+      "pre": "RS1",
+      "post": "FS2",
+      "probability": 0.05,
+      "strength": 1,
+      "delay": 2,
+      "receptor": "Glutamate"
+    },
+    {
+      "pre": "RS2",
+      "post": "RS3",
+      "probability": 0.05,
+      "strength": 1,
+      "delay": 3,
+      "receptor": "Glutamate"
+    },
+    {
+      "pre": "RS2",
+      "post": "RS3b",
+      "probability": 0.05,
+      "strength": 1,
+      "delay": 3,
+      "receptor": "Glutamate"
+    },
+    {
+      "pre": "RS2",
+      "post": "FS3",
+      "probability": 0.05,
+      "strength": 1,
+      "delay": 3,
+      "receptor": "Glutamate"
+    },
+    {
+      "pre": "RS3",
+      "post": "FS1",
+      "probability": 0.05,
+      "strength": 1,
+      "delay": 5,
+      "receptor": "Glutamate"
+    }
+  ],
+  "cell_parameters": {
+    "RS": {
+      "P": [
+        -0.0501703369473952,
+        0.004515314435107868,
+        -0.00794376643042094,
+        -0.0020841849080771428,
+        -0.0005469746175619979,
+        0.0034161396252431146,
+        -0.011564333006747902,
+        0.001947527389401254,
+        0.0027407900009473376,
+        -0.010667691831940287
+      ],
+      "El": -0.064,
+      "order": [
+        "Glutamate",
+        "GABA"
+      ],
+      "Q": [
+        1.5e-09,
+        5e-09
+      ],
+      "T": [
+        0.005,
+        0.005
+      ],
+      "E": [
+        0.0,
+        -0.08
+      ],
+      "Cm": 2e-10,
+      "Gl": 1e-08,
+      "Tw": 0.5,
+      "a": 0.0,
+      "b": 0.0,
+      "alpha": 1.0
+    },
+    "FS": {
+      "P": [
+        -0.05184977763971056,
+        0.006159297772458374,
+        -0.014035223987503698,
+        0.001665106536023517,
+        -0.002055898144772868,
+        0.0031843179555989002,
+        -0.031127746853867978,
+        0.006566683180356312,
+        0.001718289739500453,
+        -0.04516384713079858
+      ],
+      "El": -0.065,
+      "order": [
+        "Glutamate",
+        "GABA"
+      ],
+      "Q": [
+        1.5e-09,
+        5e-09
+      ],
+      "T": [
+        0.005,
+        0.005
+      ],
+      "E": [
+        0.0,
+        -0.08
+      ],
+      "Cm": 2e-10,
+      "Gl": 1e-08,
+      "Tw": 0.5,
+      "a": 0.0,
+      "b": 0.0,
+      "alpha": 1.0
+    }
+  }
+}

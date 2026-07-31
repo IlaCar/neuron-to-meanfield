@@ -1,0 +1,36 @@
+name: Tests (fast)
+
+on:
+  push:
+    branches: [main, testing]
+  pull_request:
+
+jobs:
+  test:
+    name: Run fast tests (exclude slow)
+    runs-on: ubuntu-latest
+    env:
+      PYTHON_VERSION: "3.12"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++
+
+      - name: Install Python dependencies
+        run: |
+          pip install --upgrade pip
+          pip install numpy scipy matplotlib pandas h5py seaborn brian2 pytest pytest-cov
+
+      - name: Run tests
+        run: |
+          python -m pytest tests/ -v -k "not slow" --cov=ntmf --cov-report=term-missing

@@ -1,0 +1,43 @@
+{
+    "file_name": "McCormickWilliamson1989_fig1B.csv",
+    "stimulation_protocol": [
+        [
+            0,
+            33,
+            333,
+            400
+        ],
+        [
+            0,
+            800,
+            0
+        ]
+    ],
+    "current": [
+        800
+    ],
+    "mean_frequency": [
+        13.33
+    ],
+    "inv_first_ISI": [
+        56.63
+    ],
+    "inv_last_ISI": [
+        9.48
+    ],
+    "time_to_first_spike": [
+        9.11
+    ],
+    "time_to_second_spike": [
+        26.77
+    ],
+    "time_to_third_spike": [
+        82.71
+    ],
+    "time_to_last_spike": [
+        188.19
+    ],
+    "volt_stimend": [
+        null
+    ]
+}

@@ -1,0 +1,30 @@
+[
+    {
+        "metainfo": "Network config file -- MF phase plane",
+        "network_composition": {
+            "tot_neurons": 10000,
+            "FS_neuron": 2000,
+            "RS_neuron": 8000,
+            "conn_prob": 0.05
+        },
+        "external_input": {
+            "N_external_exc": 8000,
+            "N_external_inh": 2000,            
+            "conn_prob": 0.05
+        },
+        "rates": {
+            "freq_exc_FS": 3,
+            "freq_exc_RS": 15,
+            "freq_inh_FS": 1,
+            "freq_inh_RS": 20,
+            "background_freq": 0.0
+        },
+        "units": {
+            "freq_exc_FS": "Hz",
+            "freq_exc_RS": "Hz",
+            "freq_inh_FS": "Hz",
+            "freq_ing_RS": "Hz",            
+            "background_freq": "Hz"
+        }
+    }
+]

@@ -1,0 +1,617 @@
+.ppw-widget {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    padding: 10px;
+    color: #333;
+    background: #fff;
+}
+
+.ppw-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 12px;
+    padding: 10px;
+    background: #f8f9fa;
+    border-radius: 6px;
+    border: 1px solid #e9ecef;
+}
+
+.ppw-control-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.ppw-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #495057;
+}
+
+.ppw-model-select {
+    padding: 4px 8px;
+    font-size: 13px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    background: #fff;
+    min-width: 160px;
+}
+
+.ppw-params {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    flex: 1;
+    min-width: 200px;
+}
+
+/* Used when the model supplies `param_layout`; grid-template-columns is set
+   from the widest row, and each slider is placed explicitly. */
+.ppw-params.ppw-params-grid {
+    display: grid;
+    align-items: start;
+}
+
+.ppw-param {
+    display: flex;
+    flex-direction: column;
+    min-width: 130px;
+    flex: 1;
+}
+
+.ppw-param label {
+    font-size: 11px;
+    color: #6c757d;
+    margin-bottom: 2px;
+    cursor: help;
+}
+
+.ppw-param-value {
+    font-size: 12px;
+    font-weight: 600;
+    color: #212529;
+    min-width: 50px;
+}
+
+.ppw-param-slider {
+    width: 100%;
+    margin: 0;
+    cursor: pointer;
+}
+
+.ppw-limits {
+    gap: 6px;
+}
+
+.ppw-limits input[type="number"] {
+    width: 60px;
+    padding: 3px 6px;
+    font-size: 12px;
+    border: 1px solid #ced4da;
+    border-radius: 3px;
+}
+
+.ppw-toggles {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+.ppw-toggles label {
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    user-select: none;
+}
+
+/* State variable axis selectors */
+.ppw-axis-selectors {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.ppw-axis-selectors label {
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.ppw-axis-selectors select {
+    padding: 3px 6px;
+    font-size: 12px;
+    border: 1px solid #ced4da;
+    border-radius: 3px;
+    background: #fff;
+}
+
+/* Clamped sliders for hidden state vars */
+.ppw-clamped-section {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 6px 10px;
+    margin: 4px 0;
+    background: #f1f3f5;
+    border-radius: 4px;
+    border: 1px solid #dee2e6;
+}
+
+.ppw-clamped-header {
+    font-size: 11px;
+    font-weight: 600;
+    color: #6c757d;
+    width: 100%;
+    margin-bottom: 2px;
+}
+
+.ppw-clamped-param {
+    display: flex;
+    flex-direction: column;
+    min-width: 120px;
+    flex: 1;
+}
+
+.ppw-clamped-param label {
+    font-size: 11px;
+    color: #6c757d;
+    margin-bottom: 2px;
+}
+
+.ppw-clamped-param .ppw-param-value {
+    font-size: 12px;
+    font-weight: 600;
+    color: #212529;
+}
+
+/* Integrator selector */
+.ppw-integrator-row {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.ppw-integrator-row label {
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    user-select: none;
+}
+
+/* Noise strength slider */
+.ppw-noise-slider {
+    display: flex;
+    flex-direction: column;
+    min-width: 120px;
+}
+
+.ppw-noise-slider label {
+    font-size: 11px;
+    color: #6c757d;
+    margin-bottom: 2px;
+}
+
+.ppw-noise-slider input[type="range"] {
+    width: 100%;
+    margin: 0;
+    cursor: pointer;
+}
+
+/* Numerical divergence indicator */
+.ppw-divergence-overlay {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 14px;
+    font-weight: 700;
+    color: #f44336;
+    background: rgba(255,255,255,0.85);
+    padding: 6px 12px;
+    border-radius: 4px;
+    border: 2px solid #f44336;
+    pointer-events: none;
+    z-index: 10;
+}
+
+.ppw-plots {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.ppw-phase-container,
+.ppw-time-container {
+    flex: 1;
+    min-width: 300px;
+    position: relative;
+}
+
+.ppw-canvas-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 4px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.ppw-canvas-hint {
+    font-size: 11px;
+    color: #adb5bd;
+    margin-top: 4px;
+}
+
+.ppw-phase-canvas,
+.ppw-time-canvas,
+.ppw-sweep-canvas {
+    width: 100%;
+    height: auto;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    background: #fafafa;
+    cursor: crosshair;
+    display: block;
+}
+
+.ppw-1d-canvas {
+    cursor: default;
+}
+
+.ppw-sweep {
+    margin-top: 16px;
+    padding: 10px;
+    background: #f8f9fa;
+    border-radius: 6px;
+    border: 1px solid #e9ecef;
+}
+
+.ppw-sweep-header {
+    font-size: 13px;
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 8px;
+}
+
+.ppw-sweep-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.ppw-sweep-controls label {
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.ppw-sweep-controls input[type="number"] {
+    width: 60px;
+    padding: 3px 6px;
+    font-size: 12px;
+    border: 1px solid #ced4da;
+    border-radius: 3px;
+}
+
+.ppw-sweep-btn {
+    padding: 5px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #fff;
+    background: #2196F3;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.ppw-sweep-btn:hover {
+    background: #1976D2;
+}
+
+.ppw-sweep-btn:disabled {
+    background: #90caf9;
+    cursor: not-allowed;
+}
+
+.ppw-sweep-spinner {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #2196F3;
+    border-radius: 50%;
+    animation: ppw-spin 0.6s linear infinite;
+    margin-left: 6px;
+    vertical-align: middle;
+}
+
+@keyframes ppw-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.ppw-sweep-progress {
+    width: 100%;
+    height: 8px;
+    background: #e9ecef;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 8px;
+    position: relative;
+    display: none;
+}
+
+.ppw-sweep-progress.visible {
+    display: block;
+}
+
+.ppw-sweep-progress-bar {
+    height: 100%;
+    background: #2196F3;
+    transition: width 0.1s linear;
+    border-radius: 4px;
+}
+
+.ppw-sweep-progress-text {
+    position: absolute;
+    top: 50%;
+    right: 6px;
+    transform: translateY(-50%);
+    font-size: 10px;
+    color: #666;
+}
+
+.ppw-sweep-error {
+    color: #b3261e;
+    font-size: 11px;
+}
+
+.ppw-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 6px;
+    font-size: 11px;
+}
+
+.ppw-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.ppw-legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 1px solid #333;
+}
+
+.ppw-legend-line {
+    width: 20px;
+    height: 3px;
+    border-radius: 1px;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   LIVE EDITOR
+   ═══════════════════════════════════════════════════════════════ */
+
+.ppw-editor-toggle {
+    padding: 5px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #fff;
+    background: #2196F3;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.ppw-editor-toggle:hover {
+    background: #1976D2;
+}
+
+.ppw-editor-panel {
+    display: none;
+    padding: 12px;
+    background: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+    margin-bottom: 12px;
+}
+
+.ppw-editor-panel.open {
+    display: block;
+}
+
+.ppw-editor-section {
+    margin-bottom: 12px;
+}
+
+.ppw-editor-section-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: #495057;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.ppw-editor-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+}
+
+.ppw-editor-table th {
+    text-align: left;
+    padding: 4px 6px;
+    background: #e9ecef;
+    color: #495057;
+    font-weight: 600;
+}
+
+.ppw-editor-table td {
+    padding: 4px 6px;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.ppw-editor-table input {
+    width: 80px;
+    padding: 3px 6px;
+    font-size: 12px;
+    border: 1px solid #ced4da;
+    border-radius: 3px;
+}
+
+.ppw-editor-equation {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+
+.ppw-editor-equation label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #495057;
+    min-width: 24px;
+}
+
+.ppw-editor-equation textarea {
+    flex: 1;
+    height: 28px;
+    padding: 4px 8px;
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+    font-size: 12px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    resize: vertical;
+}
+
+.ppw-editor-equation textarea.ppw-error {
+    border-color: #f44336;
+    background: #ffebee;
+}
+
+.ppw-editor-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 12px;
+}
+
+.ppw-editor-actions button {
+    padding: 6px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.ppw-btn-apply {
+    color: #fff;
+    background: #4CAF50;
+}
+
+.ppw-btn-apply:hover {
+    background: #388E3C;
+}
+
+.ppw-btn-copy {
+    color: #495057;
+    background: #e9ecef;
+}
+
+.ppw-btn-copy:hover {
+    background: #dee2e6;
+}
+
+.ppw-editor-error {
+    margin-top: 8px;
+    padding: 8px 10px;
+    font-size: 12px;
+    color: #c62828;
+    background: #ffebee;
+    border: 1px solid #ef9a9a;
+    border-radius: 4px;
+    display: none;
+}
+
+.ppw-editor-error.visible {
+    display: block;
+}
+
+.ppw-editor-status {
+    margin-top: 6px;
+    font-size: 11px;
+    color: #6c757d;
+    font-style: italic;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   DISPLAY MODE: phase_plane only
+   ═══════════════════════════════════════════════════════════════ */
+
+.ppw-widget.ppw-phase-only .ppw-controls,
+.ppw-widget.ppw-phase-only .ppw-time-container,
+.ppw-widget.ppw-phase-only .ppw-sweep,
+.ppw-widget.ppw-phase-only .ppw-editor-panel,
+.ppw-widget.ppw-phase-only .ppw-noise-section {
+    display: none;
+}
+
+.ppw-widget.ppw-phase-only .ppw-plots {
+    flex-direction: column;
+}
+
+.ppw-widget.ppw-phase-only .ppw-phase-container {
+    flex: none;
+    width: 100%;
+    min-width: 0;
+}
+
+.ppw-widget.ppw-phase-only .ppw-phase-canvas {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1 / 1;
+    max-height: none;
+}
+
+.ppw-export-row {
+  margin-top: 8px;
+  display: flex;
+  gap: 8px;
+}
+.ppw-export-row button {
+  flex: 1;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  background: #fff;
+  color: #495057;
+  cursor: pointer;
+}
+.ppw-export-row button:hover {
+  background: #e9ecef;
+}
+.ppw-export-row button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

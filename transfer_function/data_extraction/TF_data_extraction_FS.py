@@ -7,9 +7,10 @@ parent_dir = os.path.abspath(os.path.join(cwd, '..', '..'))
 sys.path.append(parent_dir)
 # We do this so that we can directly import files in the utils folder
 
-from utils.Brian_function_helper import *
+from ntmf.config import get_input_config, get_syn_info
+from ntmf.neurons import setting_simulation_Brian
+from ntmf.network import extracting_single_pop_freq_and_std
 from utils.Plots_helper import *
-from utils.Sim_helper import *
 
 simualtion_folder = os.path.join('TF_FS_v1')
 isExist = os.path.exists(simualtion_folder)
@@ -132,7 +133,9 @@ for i, ext_input_inh in enumerate(external_input_inh_range):
         # Defining the Monitors (variables to record)
         mon_spike_FS = b2.SpikeMonitor(G_FS)
 
-        ids_extra_check = len(external_input_inh_range)
+        #ids_extra_check = len(external_input_inh_range)
+        ids_extra_check = 10000 # to avoid extra recordings and plottings
+        
         if n_sim % ids_extra_check == 0:
             ### adding extra monitors
             mon_FS = b2.StateMonitor(G_FS, ['v'], record=True)               
@@ -191,6 +194,6 @@ print(f'Simulations completed!')
 print('... Saving .dat files...')
 data = np.column_stack((in_inh, in_exc, FREQ_avg.flatten(), FREQ_std.flatten()))
 header = 'input_inh input_exc avg_f_out std_f_out'
-np.savetxt(os.path.join(simualtion_folder,'testing_TF_data_FS.dat'), data, fmt='%.1f', header=header, comments='')
+np.savetxt(os.path.join(simualtion_folder,'testing_TF_data_FS.dat'), data, fmt='%.2f', header=header, comments='')
 
 print('Done!')
