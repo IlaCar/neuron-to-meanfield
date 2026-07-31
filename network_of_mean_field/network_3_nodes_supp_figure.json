@@ -170,7 +170,15 @@
       "strength": 1.0,
       "delay": 0.0,
       "receptor": "GABA"
-    },  
+    }, 
+    {
+      "pre": "FS_3",
+      "post": "RS_3",
+      "probability": 0.05,
+      "strength": 1.0,
+      "delay": 0.0,
+      "receptor": "GABA"
+    },        
     {
       "pre": "FS_3",
       "post": "FS_3",
