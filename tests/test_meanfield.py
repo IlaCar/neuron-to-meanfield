@@ -18,13 +18,13 @@ def mf_params(validation_dir, neuron_models_dir, config_dir):
     params_FS = get_params_model_SI("FS", neuron_models_dir / "FS.json")
     params_RS = get_params_model_SI("RS", neuron_models_dir / "RS.json")
 
-    net_cfg = get_network_config(validation_dir / "input_config_TF.json")
+    net_cfg = get_network_config("../config/input_config_TF.json")
     params_FS = adding_K_params(params_FS, net_cfg)
     params_RS = adding_K_params(params_RS, net_cfg)
 
-    with open(validation_dir / "FS_MF_params.json") as f:
+    with open("transfer_function/fitting/results/10_best_params_TF_FS.json") as f:
         fs_params = json.load(f)
-    with open(validation_dir / "RS_MF_params.json") as f:
+    with open("transfer_function/fitting/results/10_best_params_TF_RS.json") as f:
         rs_params = json.load(f)
 
     return {
