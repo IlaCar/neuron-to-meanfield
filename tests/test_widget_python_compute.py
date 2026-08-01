@@ -29,9 +29,9 @@ def _build_widget():
         ),
     }
 
-    with open("transfer_function/validation/FS_MF_params.json") as f:
+    with open("transfer_function/fitting/results/10_best_params_FS.json") as f:
         fs_fits = json.load(f)
-    with open("transfer_function/validation/RS_MF_params.json") as f:
+    with open("transfer_function/fitting/results/10_best_params_FS") as f:
         rs_fits = json.load(f)
 
     fs_fit = fs_fits[0]
@@ -109,7 +109,7 @@ class TestTraitChangeTriggersRecompute:
 
 class TestWidgetWithoutPythonCompute:
     def test_default_mode_empty_traits(self):
-        w = PhasePlaneWidget(model_name="wilson_cowan")
+        w = PhasePlaneWidget(model_name="NTMFMeanField")
         # Default python_compute=False; JS hasn't run so data traits are empty
         assert len(w.nullcline_x) == 0
         assert len(w.nullcline_y) == 0
