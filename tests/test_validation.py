@@ -51,10 +51,10 @@ def mf_network_config(project_root: Path) -> dict:
 @pytest.fixture(scope="session")
 def tf_params(project_root: Path) -> dict:
     """Load best TF fitting params (index 0) for FS and RS."""
-    val_dir = project_root / "transfer_function" / "validation"
-    with open(val_dir / "FS_MF_params.json") as f:
+    val_dir = project_root / "mean_field" / "validation"
+    with open(val_dir / "10_best_params_TF_FS.json") as f:
         fs_data = json.load(f)
-    with open(val_dir / "RS_MF_params.json") as f:
+    with open(val_dir / "10_best_params_TF_RS.json") as f:
         rs_data = json.load(f)
     best_fs = fs_data[0]  # lowest mean_error
     best_rs = rs_data[0]
