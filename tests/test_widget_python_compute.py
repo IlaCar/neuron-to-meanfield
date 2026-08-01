@@ -29,9 +29,9 @@ def _build_widget():
         ),
     }
 
-    with open("transfer_function/fitting/results/10_best_params_FS.json") as f:
+    with open("transfer_function/fitting/results/10_best_params_TF_FS.json") as f:
         fs_fits = json.load(f)
-    with open("transfer_function/fitting/results/10_best_params_FS") as f:
+    with open("transfer_function/fitting/results/10_best_params_TF_RS.json") as f:
         rs_fits = json.load(f)
 
     fs_fit = fs_fits[0]
