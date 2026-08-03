@@ -18,7 +18,7 @@ def mf_params(validation_dir, neuron_models_dir, config_dir):
     params_FS = get_params_model_SI("FS", neuron_models_dir / "FS.json")
     params_RS = get_params_model_SI("RS", neuron_models_dir / "RS.json")
 
-    net_cfg = get_network_config("config/input_config_TF.json")
+    net_cfg = get_network_config("config/network_config_file_tests.json")
     params_FS = adding_K_params(params_FS, net_cfg)
     params_RS = adding_K_params(params_RS, net_cfg)
 
