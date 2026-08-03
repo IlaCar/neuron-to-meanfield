@@ -10,7 +10,7 @@
         "external_input": {
             "N_external_exc": 8000,
             "N_external_inh": 2000,            
-            "conn_prob": 0.05
+            "conn_prob": 0.05,
             "Q_e": 1.5,
             "Q_i": 5.0         
         },
