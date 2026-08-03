@@ -75,12 +75,12 @@ class TestPipelineWithRealData:
         assert np.isfinite(error)
 
     def test_full_MF_simulation_with_saved_params(
-        self, validation_dir, neuron_models_dir
+        self, config_dir, neuron_models_dir
     ):
         """Load saved params → run MF sim → verify rates are finite and reasonable."""
         params_FS = get_params_model_SI("FS", neuron_models_dir / "FS.json")
         params_RS = get_params_model_SI("RS", neuron_models_dir / "RS.json")
-        net_cfg = get_network_config(validation_dir / "network_config_file_tests.json")
+        net_cfg = get_network_config(config_dir / "network_config_file_tests.json")
         params_FS = adding_K_params(params_FS, net_cfg)
         params_RS = adding_K_params(params_RS, net_cfg)
 
