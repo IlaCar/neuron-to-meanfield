@@ -86,7 +86,7 @@ class TestPipelineWithRealData:
 
         with open("mean_field/validation/10_best_params_TF_FS.json") as f:
             fs_data = json.load(f)
-        with open("mean_field/validation//10_best_params_TF_RS.json") as f:
+        with open("mean_field/validation/10_best_params_TF_RS.json") as f:
             rs_data = json.load(f)
 
         T, dt = 1.0, 1e-3
