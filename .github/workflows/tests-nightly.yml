@@ -30,7 +30,7 @@ jobs:
       - name: Install Python dependencies
         run: |
           pip install --upgrade pip
-          pip install numpy scipy matplotlib pandas h5py seaborn brian2 pytest pytest-cov
+          pip install numpy scipy matplotlib pandas h5py seaborn brian2 pytest pytest-cov anywidget
 
       - name: Run tests
         run: |
