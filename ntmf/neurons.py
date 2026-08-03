@@ -11,7 +11,7 @@ from typing import Any
 import brian2 as b2
 import numpy as np
 
-from ntmf.config import IMPLEMENTED_NEURON_MODELS
+from ntmf.config import IMPLEMENTED_NEURON_MODELS, AdEx_IMPLEMENTED_NEURON_MODELS
 
 
 # ---------------------------------------------------------------------------

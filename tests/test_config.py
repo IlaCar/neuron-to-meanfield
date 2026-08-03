@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from ntmf.config import (
-    IMPLEMENTED_NEURON_MODELS,
+    AdEx_IMPLEMENTED_NEURON_MODELS,
     adding_K_params,
     get_input_config,
     get_network_config,
@@ -22,8 +22,8 @@ from ntmf.config import (
 class TestGetParamsModelSI:
     def test_all_AdEx_models_load(self, neuron_models_dir):
         """Every implemented model loads without error."""
-        for model in IMPLEMENTED_NEURON_MODELS:
-            p = get_params_model_SI(model, neuron_models_dir / "AdEx"/ f"{model}.json")
+        for model in AdEx_IMPLEMENTED_NEURON_MODELS:
+            p = get_params_model_SI(model, neuron_models_dir / f"{model}.json")
             assert isinstance(p, dict)
             assert len(p) > 0
 

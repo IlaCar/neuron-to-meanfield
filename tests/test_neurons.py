@@ -12,11 +12,11 @@ import brian2 as b2
 
 from ntmf.neurons import (
     AdEx_eqs,
-    IMPLEMENTED_NEURON_MODELS,
+    AdEx_IMPLEMENTED_NEURON_MODELS,
     setting_simulation_Brian,
     voltage_clamp_synapse,
 )
-from ntmf.config import IMPLEMENTED_NEURON_MODELS as CONFIG_MODELS
+from ntmf.config import AdEx_IMPLEMENTED_NEURON_MODELS as CONFIG_MODELS
 
 
 # =====================================================================

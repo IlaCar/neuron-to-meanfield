@@ -15,6 +15,7 @@ import pandas as pd
 
 import os
 
+AdEx_IMPLEMENTED_NEURON_MODELS = ["FS", "RS", "RS_no_adapt"]
 IMPLEMENTED_NEURON_MODELS = ["FS", "RS", "RS_no_adapt", "GoC"]
 
 

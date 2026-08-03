@@ -17,7 +17,7 @@
             "freq_exc_RS": 3,
             "freq_inh_FS": 10,
             "freq_inh_RS": 30,
-            "background_freq": 0.3
+            "background_freq": 0.0
         },
         "units": {
             "freq_exc_FS": "Hz",

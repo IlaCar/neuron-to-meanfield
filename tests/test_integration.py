@@ -80,7 +80,7 @@ class TestPipelineWithRealData:
         """Load saved params → run MF sim → verify rates are finite and reasonable."""
         params_FS = get_params_model_SI("FS", neuron_models_dir / "FS.json")
         params_RS = get_params_model_SI("RS", neuron_models_dir / "RS.json")
-        net_cfg = get_network_config(validation_dir / "network_config_file_val.json")
+        net_cfg = get_network_config(validation_dir / "network_config_file_tests.json")
         params_FS = adding_K_params(params_FS, net_cfg)
         params_RS = adding_K_params(params_RS, net_cfg)
 
