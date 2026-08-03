@@ -13,6 +13,7 @@ dependencies = [
     "seaborn",
     "scikit-learn",
     "imageio",
+    "networkx"
 ]
 
 [project.optional-dependencies]
