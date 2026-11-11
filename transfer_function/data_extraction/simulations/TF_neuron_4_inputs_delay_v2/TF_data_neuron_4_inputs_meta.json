@@ -1,0 +1,75 @@
+{
+    "neuron_model": "neuron_4_inputs",
+    "neuron_json": "/home/ilariac/Documents/GitHub/working_on/neuron-to-meanfield/neuron_models/AdEx/neuron_4_inputs.json",
+    "sweep_json": "/home/ilariac/Documents/GitHub/working_on/neuron-to-meanfield/config/input_config_TF_4_channels.json",
+    "E_L": -65,
+    "channels": {
+        "1": {
+            "N_external": 6000,
+            "conn_prob": 0.05,
+            "background_freq": 1.0,
+            "min": 0.0,
+            "max": 30.0,
+            "step": 10.0,
+            "K": 300.0,
+            "E": 0,
+            "Q": 1.5,
+            "tau": 3
+        },
+        "2": {
+            "N_external": 4000,
+            "conn_prob": 0.025,
+            "background_freq": 0.0,
+            "min": 0.0,
+            "max": 30.0,
+            "step": 10.0,
+            "K": 100.0,
+            "E": -80,
+            "Q": 5.0,
+            "tau": 5
+        },
+        "3": {
+            "N_external": 2000,
+            "conn_prob": 0.035,
+            "background_freq": 0.0,
+            "min": 0.0,
+            "max": 30.0,
+            "step": 10.0,
+            "K": 70.0,
+            "E": -80,
+            "Q": 1.0,
+            "tau": 7
+        },
+        "4": {
+            "N_external": 2000,
+            "conn_prob": 0.015,
+            "background_freq": 0.0,
+            "min": 0.0,
+            "max": 30.0,
+            "step": 10.0,
+            "K": 30.0,
+            "E": 0,
+            "Q": 2.5,
+            "tau": 7
+        }
+    },
+    "sampling": {
+        "mode": "grid"
+    },
+    "protocol": {
+        "sim_duration_s": 7.0,
+        "p_start_s": 2.0,
+        "p_end_s": 5.0,
+        "delay_s": 1.0,
+        "bin_size_s": 0.25,
+        "dt_ms": 0.1,
+        "N_cell": 5,
+        "seed": 12345
+    },
+    "units": {
+        "E": "mV",
+        "Q": "nS",
+        "tau": "ms",
+        "rates": "Hz"
+    }
+}
