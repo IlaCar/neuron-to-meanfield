@@ -10,6 +10,7 @@ from typing import Any
 
 import brian2 as b2
 import numpy as np
+import re
 
 from ntmf.config import IMPLEMENTED_NEURON_MODELS, AdEx_IMPLEMENTED_NEURON_MODELS
 
@@ -413,3 +414,182 @@ def voltage_clamp_synapse(
     net = b2.Network(G, inject_event, M)
     net.run(sim_time)
     return M
+
+# ---------------------------------------------------------------------------
+# Channel detection
+# ---------------------------------------------------------------------------
+
+def synaptic_channels_from_model(model: dict) -> list[dict]:
+    """Normalize a model dict into an ordered list of synaptic-channel specs.
+
+    Supports two naming schemes:
+
+    * classic 2-channel: ``E_e``/``Q_e`` and ``E_i``/``Q_i``, sharing ``tau_syn``;
+    * generalized N-channel: ``E_1``/``Q_1``/``tau_1``, ``E_2``/... , any N.
+
+    Each returned spec carries the Brian2 variable stem (``name``) plus the JSON
+    keys needed to look up the reversal potential, quantal conductance, decay
+    time constant and (optional) initial conductance.
+    """
+    numbered = sorted(
+        int(match.group(1))
+        for key in model
+        if (match := re.fullmatch(r"E_(\d+)", key)) is not None
+    )
+    if numbered:
+        return [
+            {
+                "name": str(n),
+                "E_key": f"E_{n}",
+                "Q_key": f"Q_{n}",
+                "tau_key": f"tau_{n}",
+                "init_key": f"g_{n}",
+            }
+            for n in numbered
+        ]
+
+    if "E_e" in model and "E_i" in model:
+        return [
+            {"name": "E", "E_key": "E_e", "Q_key": "Q_e", "tau_key": "tau_syn", "init_key": "g_E"},
+            {"name": "I", "E_key": "E_i", "Q_key": "Q_i", "tau_key": "tau_syn", "init_key": "g_I"},
+        ]
+
+    raise ValueError(
+        "Could not detect synaptic channels: expected either E_e/E_i or E_1, E_2, ..."
+    )
+
+def is_generalized_model(model: dict) -> bool:
+    """True if the model dict uses the numbered E_1, E_2, ... channel scheme."""
+    return any(re.fullmatch(r"E_\d+", key) for key in model)
+
+# ---------------------------------------------------------------------------
+# Equation builder
+# ---------------------------------------------------------------------------
+
+def build_AdEx_eqs(channels: list[dict]) -> str:
+    """Assemble the AdEx equation string for an arbitrary set of channels.
+
+    For each channel ``k`` this creates a conductance state variable ``Gsyn{k}``
+    with its own decay ``Tsyn{k}`` and reversal ``E{k}``. With the classic e/i
+    channel list this reproduces the original two-channel dynamics (with the
+    single ``tau_syn`` duplicated into ``TsynE`` and ``TsynI``).
+    """
+    stems = [c["name"] for c in channels]
+
+    syn_drive = " ".join(f"- Gsyn{s}*(v-E{s})" for s in stems)
+    syn_odes = "\n".join(f"dGsyn{s}/dt = -Gsyn{s}/Tsyn{s} : siemens" for s in stems)
+    E_decls = "\n".join(f"E{s} : volt" for s in stems)
+    tau_decls = "\n".join(f"Tsyn{s} : second" for s in stems)
+    Itot_terms = "+".join(f"Gsyn{s}" for s in stems)
+
+    return f"""
+dv/dt = ({syn_drive} - gl*(v-El) + gl*Dt*exp((v-Vt)/Dt) - w + Is)/Cm : volt (unless refractory)
+dw/dt = (a*(v-El)-w)/tau_w : ampere
+{syn_odes}
+Itot = ({Itot_terms})*v : ampere
+Is = current(t) : ampere
+Cm : farad
+gl : siemens
+El : volt
+a : siemens
+tau_w : second
+Dt : volt
+Vt : volt
+{E_decls}
+{tau_decls}
+"""
+
+# ---------------------------------------------------------------------------
+# Generalized neuron creation
+# ---------------------------------------------------------------------------
+
+def setting_simulation_Brian_general(
+    neuron_model: str,
+    json_file_name: str | Path,
+    idx: int = 0,
+    N_cell: int = 1,
+    curr_inj: Any = None,
+) -> b2.NeuronGroup:
+    """Create an AdEx ``NeuronGroup`` for a cell with any number of channels.
+
+    Mirrors ``setting_simulation_Brian`` but reads the synaptic channels from the
+    JSON rather than hard-coding two. Membrane / adaptation handling is identical.
+    """
+    if neuron_model not in IMPLEMENTED_NEURON_MODELS:
+        raise ValueError(
+            f"neuron_model must be one of {IMPLEMENTED_NEURON_MODELS}, but got '{neuron_model}'."
+        )
+    if json_file_name is None:
+        raise ValueError("Please specify the json_file_name containing the model parameters.")
+
+    with open(json_file_name, "r") as fh:
+        data = json.load(fh)
+
+    entry = data[0][idx]
+    m = entry["model"]
+    init = entry["init"]
+
+    channels = synaptic_channels_from_model(m)
+    eqs = build_AdEx_eqs(channels)
+
+    G = b2.NeuronGroup(
+        N_cell,
+        eqs,
+        threshold=f"v > {m['V_peak_detect']} * mV",
+        reset=f"v = {m['V_reset']} * mV; w += {m['b']} * nA",
+        refractory=f"{m['t_ref']} * ms",
+        method="heun",
+        name=neuron_model,
+    )
+
+    # membrane initial conditions
+    G.v = init["v"] * b2.mV
+    G.w = init["w"] * b2.nA
+
+    # membrane / adaptation parameters
+    G.Cm = m["C_m"] * b2.nF
+    G.gl = m["g_L"] * b2.uS
+    G.El = m["E_L"] * b2.mV
+    G.a = m["a"] * b2.nS
+    G.tau_w = m["tau_w"] * b2.ms
+    G.Vt = m["V_th"] * b2.mV
+    G.Dt = m["Delta_T"] * b2.mV
+
+    # per-channel reversal, decay and (optional) initial conductance
+    for c in channels:
+        s = c["name"]
+        setattr(G, f"E{s}", m[c["E_key"]] * b2.mV)
+        setattr(G, f"Tsyn{s}", m[c["tau_key"]] * b2.ms)
+        setattr(G, f"Gsyn{s}", init.get(c["init_key"], 0.0) * b2.nS)
+
+    if m.get("I_e", 0) != 0:
+        print(f"!!! Attention!!! I_e = {m['I_e']} nA. Set the current accordingly.")
+
+    return G
+
+# ---------------------------------------------------------------------------
+# Dispatcher
+# ---------------------------------------------------------------------------
+
+def create_AdEx_neuron(
+    neuron_model: str,
+    json_file_name: str | Path,
+    idx: int = 0,
+    N_cell: int = 1,
+    curr_inj: Any = None,
+    setting_simulation_Brian=None,
+) -> b2.NeuronGroup:
+    """Select the correct AdEx setup based on the cell JSON.
+
+    Numbered channels (E_1, E_2, ...) -> ``setting_simulation_Brian_general``.
+    Classic e/i                       -> the original ``setting_simulation_Brian``.
+
+    Pass the original function in as ``setting_simulation_Brian`` (or rely on it
+    being importable in ``neurons.py``).
+    """
+    with open(json_file_name, "r") as fh:
+        model = json.load(fh)[0][idx]["model"]
+
+    if is_generalized_model(model):
+        return setting_simulation_Brian_general(neuron_model, json_file_name, idx, N_cell, curr_inj)
+    return setting_simulation_Brian(neuron_model, json_file_name, idx, N_cell, curr_inj)

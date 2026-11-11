@@ -1,0 +1,38 @@
+[
+    {
+        "metainfo": "Input config file -- sim",
+        "connections": {
+            "N_external_1": 6000,
+            "N_external_2": 4000,          
+            "N_external_3": 2000,                        
+            "conn_prob_1": 0.05,
+            "conn_prob_2": 0.025,
+            "conn_prob_3": 0.015            
+        },
+    "channels": {
+        "1": {
+            "background_freq": 2.0,
+            "stimulations": [
+                {"t_start": 1.0, "t_end": 2.0, "freq": 12.0}
+            ]
+        },
+        "2": {
+            "background_freq": 0.0,
+            "stimulations": [
+                {"t_start": 3.0, "t_end": 4.0, "freq": 10.0}
+            ]
+        },
+        "3": {
+            "background_freq": 0.0,
+            "stimulations": [
+                {"t_start": 5.0, "t_end": 6.0, "freq": 10.0}
+            ]
+        }
+    },
+        "units": {
+            "t_start" : "s",
+            "t_end": "s",
+            "freq": "Hz"
+        }
+    }
+]
