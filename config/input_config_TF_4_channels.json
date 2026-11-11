@@ -1,0 +1,29 @@
+[
+    {
+        "metainfo": "Input config file -- TF sweep, 4 synaptic channels",
+        "connections": {
+            "N_external_1": 6000,
+            "N_external_2": 4000,
+            "N_external_3": 2000,
+            "N_external_4": 2000,
+            "conn_prob_1": 0.05,
+            "conn_prob_2": 0.025,
+            "conn_prob_3": 0.035,
+            "conn_prob_4": 0.015
+        },
+        "channels": {
+            "1": {"background_freq": 1.0, "sweep": {"min": 0.0, "max": 30.0, "step": 10.0}},
+            "2": {"background_freq": 0.0, "sweep": {"min": 0.0, "max": 30.0, "step": 10.0}},
+            "3": {"background_freq": 0.0, "sweep": {"min": 0.0, "max": 30.0, "step": 10.0}},
+            "4": {"background_freq": 0.0, "sweep": {"min": 0.0, "max": 30.0, "step": 10.0}}
+        },
+        "sampling": {"mode": "grid"},
+        "_sampling_alternative": {"mode": "lhs", "n_samples": 1000, "seed": 12345},
+        "units": {
+            "background_freq": "Hz",
+            "min": "Hz",
+            "max": "Hz",
+            "step": "Hz"
+        }
+    }
+]
