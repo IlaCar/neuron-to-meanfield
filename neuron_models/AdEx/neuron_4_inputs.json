@@ -1,7 +1,7 @@
 [
     [
         {
-            "metainfo": "Testing RS like-model with 3 inputs",
+            "metainfo": "Testing RS like-model with 4 inputs",
             "model": {
                 "C_m": 0.2,
                 "g_L": 0.01,
