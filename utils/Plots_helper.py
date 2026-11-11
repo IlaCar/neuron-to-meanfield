@@ -59,7 +59,25 @@ pc_colors = {
 _ARROW_COLOR = "#525252"     # neutral grey, keeps neuron colour free for the scores
 _DIVERGING_CMAP = "coolwarm"
 
+# Fallbacks for neuron models without a dedicated colour (e.g. neuron_3_inputs, neuron_4_inputs)
+_DEFAULT_NEURON_COLOR = "#525252"                             # neutral grey
+_DEFAULT_TRACE_COLORS = ['#252525', '#525252', '#969696']     # dark -> light grey
 
+def get_neuron_color(neuron_model):
+    """Colour for *neuron_model*, falling back to neutral grey for unlisted models."""
+    return color_palette.get(neuron_model, _DEFAULT_NEURON_COLOR)
+    
+_default_seq_cmap = LinearSegmentedColormap.from_list('default_seq', ['#f7f7f7', '#bdbdbd', '#737373', '#252525'])
+_default_line_cmap = LinearSegmentedColormap.from_list('default_lines', ['#bdbdbd', '#737373', '#252525'])
+
+def get_neuron_cmap(neuron_model):
+    """Sequential colormap for *neuron_model* (grey for unlisted models)."""
+    return neuron_cmaps.get(neuron_model, _default_seq_cmap)
+
+def get_neuron_line_cmap(neuron_model):
+    """Line-family colormap for *neuron_model* (grey for unlisted models)."""
+    return neuron_line_cmaps.get(neuron_model, _default_line_cmap)
+    
 # -------------------- #                 
 def get_pretty_voltage(volt, thresh):
     for i in range(len(volt) - 1):
@@ -140,6 +158,8 @@ def plotting_3_traces(neuron_model = None,
         colors = ['#08306b', '#225ea5', '#6baed6']
     if neuron_model == 'RS_no_adapt':    
         colors = ['#0e6e78', '#41b6c4', '#a6e1e6']    
+    if neuron_model not in ('FS', 'RS', 'RS_no_adapt'):
+        colors = _DEFAULT_TRACE_COLORS
     fig, ax = plt.subplots(figsize=(10, 6), sharex=True)
     ax.plot(pop.t/b2.second, pop.v[0] / b2.mV, color=colors[0])
     ax.plot(pop.t/b2.second, get_pretty_voltage(pop.v[0], -50) / b2.mV, '--', color=colors[0])
@@ -149,7 +169,7 @@ def plotting_3_traces(neuron_model = None,
     ax.plot(pop.t/b2.second, get_pretty_voltage(pop.v[2], -50) / b2.mV, '--', color=colors[2])
     ax.set_title(f'Selected {neuron_model} traces')
     
-    ax.set_xlabel('Time (ms)')
+    ax.set_xlabel('Time (s)')
     ax.set_ylabel('Membrane potential (mV)')
     
     plt.tight_layout()
@@ -698,7 +718,7 @@ def disconnected_network_raster_plot_TF(neuron_model=None,
     m_size = 1 if markersize is None else markersize
         
     fig, ax = plt.subplots(figsize=(10, 6))
-    ax.plot(pop.t / b2.second, pop.i, 'o', color=color_palette[neuron_model], markersize=m_size)
+    ax.plot(pop.t / b2.second, pop.i, 'o', color=get_neuron_color(neuron_model), markersize=m_size)
    
     # X axis
     if x_lim is not None:
@@ -760,14 +780,17 @@ def plotting_single_pop_freq_and_std(sim_duration = None,
     # Compute mean and std
     mean_rate = np.mean(spike_matrix, axis=0)
     std_rate = np.std(spike_matrix, axis=0)
-    
+
+    '''
     if neuron_model == 'FS':
         color = color_palette['FS']
     if neuron_model == 'RS':
         color = color_palette['RS']
     if neuron_model == 'RS_no_adapt':
         color = color_palette['RS_no_adapt']
-        
+    '''
+    color = get_neuron_color(neuron_model)
+    
     fig, ax = plt.subplots(figsize=(10, 6))
     plt.plot(time_bins, mean_rate, label='avg freq', color = color)
     
@@ -934,55 +957,68 @@ def annotate_heatmap(im, data=None, valfmt="{x:.2f}",
     return texts
 
 # -------------------- #
-def heatmap_InOut(exc_vals, inh_vals, data_array, neuron_type):
+def heatmap_InOut(exc_vals, inh_vals, data_array, neuron_type,
+                  x_label='Freq Excitatory synapses (Hz)',
+                  y_label='Freq Inhibitory synapses (Hz)',
+                  title_suffix=''):
     fig = plt.figure(figsize=(10,6))
         
     plt.imshow(data_array, aspect='auto', origin='lower',
                extent=[exc_vals[0], exc_vals[-1], inh_vals[0], inh_vals[-1]],
-               cmap=neuron_cmaps[neuron_type])
+               cmap=get_neuron_cmap(neuron_type))
     
     plt.colorbar(label='Output frequency (Hz)')
-    plt.xlabel('Freq Excitatory synapses (Hz)')
-    plt.ylabel('Freq Inhibitory synapses (Hz)')
-    plt.title(f'{neuron_type} input–output relation')
+    plt.xlabel(x_label)
+    plt.ylabel(y_label)
+    plt.title(f'{neuron_type} input–output relation{title_suffix}')
     
     return fig
     
 # -------------------- #
-def plot_InOut_relation(exc_vals, inh_vals, data_array, std_data_array, neuron_type):
+def plot_InOut_relation(exc_vals, inh_vals, data_array, std_data_array, neuron_type,
+                        x_label='Freq Excitatory synapses (Hz)',
+                        legend_title='Freq Inh Syn (Hz)',
+                        label_every=5,
+                        title_suffix=''):
     fig = plt.figure(figsize=(10, 6))
 
-    cmap = neuron_line_cmaps[neuron_type]
+    cmap = get_neuron_line_cmap(neuron_type)
     colors = cmap(np.linspace(0, 1, len(inh_vals)))  # light (low inh) -> dark (high inh)
 
     for i in range(len(inh_vals)):
         c = colors[i]
-        label = f'{inh_vals[i]}' if i % 5 == 0 else None
+        label = f'{inh_vals[i]:g}' if i % label_every == 0 else None
         plt.plot(exc_vals, data_array[i], '-o', color=c, label=label)
         plt.errorbar(exc_vals, data_array[i], std_data_array[i], fmt='-o', color=c, alpha=0.5)
 
-    plt.xlabel('Freq Excitatory synapses (Hz)')
+    plt.xlabel(x_label)
     plt.ylabel('Output frequency (Hz)')
-    plt.title(f'{neuron_type} input-output relation')
-    plt.legend(title='Freq Inh Syn (Hz)')
+    plt.title(f'{neuron_type} input-output relation{title_suffix}')
+    plt.legend(title=legend_title)
     return fig
 
 # -------------------- #
-def plot_contours(exc_vals, inh_vals, data_array, neuron_type):
+def plot_contours(exc_vals, inh_vals, data_array, neuron_type,
+                  x_label='Freq Excitatory synapses (Hz)',
+                  y_label='Freq Inh Syn (Hz)',
+                  title_suffix=''):
     
     fig = plt.figure(figsize=(10,6))
        
-    cs = plt.contourf(exc_vals, inh_vals, data_array, levels=20, cmap=neuron_cmaps[neuron_type])
+    cs = plt.contourf(exc_vals, inh_vals, data_array, levels=20, cmap=get_neuron_cmap(neuron_type))
 
     plt.colorbar(cs, label='Output frequency (Hz)')
-    plt.xlabel('Freq Excitatory synapses (Hz)')
-    plt.ylabel('Freq Inh Syn (Hz)')
-    plt.title(f'{neuron_type} input–output contours')
+    plt.xlabel(x_label)
+    plt.ylabel(y_label)
+    plt.title(f'{neuron_type} input–output contours{title_suffix}')
     
     return fig
 
 # -------------------- #
-def plot_gain(exc_vals, inh_vals, data_array, neuron_type):
+def plot_gain(exc_vals, inh_vals, data_array, neuron_type,
+              x_label='Freq Excitatory synapses (Hz)',
+              y_label='Freq Inh Syn (Hz)',
+              title_suffix=''):
     
     fig = plt.figure(figsize=(10,6))
         
@@ -995,24 +1031,27 @@ def plot_gain(exc_vals, inh_vals, data_array, neuron_type):
         cmap='viridis'
     )
     plt.colorbar(label='Gain (Hz/Hz)')
-    plt.xlabel('Freq Excitatory synapses (Hz)')
-    plt.ylabel('Freq Inh Syn (Hz)')
-    plt.title(f'{neuron_type} gain map')
+    plt.xlabel(x_label)
+    plt.ylabel(y_label)
+    plt.title(f'{neuron_type} gain map{title_suffix}')
     
     return fig
 
 # -------------------- #
-def mesh_3d(exc_vals, inh_vals, data_array, neuron_type):
+def mesh_3d(exc_vals, inh_vals, data_array, neuron_type,
+            x_label='Freq Excitatory synapses (Hz)',
+            y_label='Freq Inhibitory synapses (Hz)',
+            title_suffix=''):
           
     X, Y = np.meshgrid(exc_vals, inh_vals)
 
     fig = plt.figure(figsize=(10,6))
     ax = fig.add_subplot(111, projection='3d')
-    ax.plot_surface(X, Y, data_array, cmap = neuron_cmaps[neuron_type])
-    ax.set_xlabel('Freq Excitatory synapses (Hz)')
-    ax.set_ylabel('Freq Inhibitory synapses (Hz)')   
+    ax.plot_surface(X, Y, data_array, cmap = get_neuron_cmap(neuron_type))
+    ax.set_xlabel(x_label)
+    ax.set_ylabel(y_label)   
     ax.set_zlabel('Output frequency (Hz)')
-    ax.set_title(f'{neuron_type} input–output surface')
+    ax.set_title(f'{neuron_type} input–output surface{title_suffix}')
     
     return fig
 
@@ -1027,14 +1066,13 @@ def plot_TF_fitting(neuron_model, df_data, mean_error):
     inp_exc = df_data['input_exc'].to_numpy()
     out_rate = df_data['avg_f_out'].to_numpy()
     fit_rate = df_data['fit_rate']
-    ax.plot(inp_exc, out_rate, 'o', color= color_palette[neuron_model], label=f'{neuron_model} data')
+    ax.plot(inp_exc, out_rate, 'o', color= get_neuron_color(neuron_model), label=f'{neuron_model} data')
     ax.plot(inp_exc, fit_rate, 'kx', markersize=7, alpha=0.3, label='fit')
     
     ax.text(0.5, 0.95, f'mean error: {mean_error:.2f} Hz', transform=ax.transAxes, ha='center')
     ax.legend()
     
     return fig
-
 # -------------------- #
 def plot_TF_fitting_viridis(neuron_model, df_data, mean_error, unique_inh, colors):
     fig, ax = plt.subplots(figsize=(10,5))
@@ -2455,14 +2493,14 @@ def mesh_3d_with_fitting(neuron_model, df_data, mean_error=None,
     else:
         fig = ax.get_figure()
 
-    cmap = neuron_cmaps[neuron_model]
+    cmap = get_neuron_cmap(neuron_model)
 
     if style == 'surface':
         ax.plot_surface(X, Y, fit_array, cmap=cmap, alpha=0.5,
                         rstride=1, cstride=1, linewidth=0.25,
                         edgecolor='0.35', antialiased=True, shade=False)
         ax.scatter(X.ravel(), Y.ravel(), data_array.ravel(), s=9,
-                   color=color_palette[neuron_model], alpha=0.25, edgecolor=color_palette[neuron_model],
+                   color=get_neuron_color(neuron_model), alpha=0.25, edgecolor=get_neuron_color(neuron_model),
                    linewidth=0.25, depthshade=False)
     elif style == 'wireframe':
         ax.plot_surface(X, Y, data_array, cmap=cmap, alpha=0.5,
@@ -2665,3 +2703,373 @@ def plot_TF_sliced_by_mossy(df, unique_mossy, unique_inh,
     fig.suptitle(title)
     return fig
 
+
+# =========================================================================== #
+# Transfer-function data with N synaptic channels
+# =========================================================================== #
+# Expected inputs: the .dat written by TF_data_extraction_neuron_<N>_inputs.py
+# (columns input_1 ... input_N avg_f_out std_f_out) and its _meta.json.
+
+def tf_channel_info(meta, E_L=None):
+    """Per-channel labels, colours and markers from a TF-extraction meta dict.
+
+    A channel is called excitatory when its reversal potential lies above the
+    resting potential E_L (read from ``meta['E_L']`` unless given), inhibitory
+    otherwise. Excitatory channels use the excitatory-synapse green and circle
+    markers, inhibitory ones the inhibitory red and square markers.
+
+    Returns
+    -------
+    dict : {channel: {"col", "label", "short", "kind", "color", "marker"}}
+    """
+
+    if E_L is None:
+        E_L = meta.get('E_L')
+    if E_L is None:
+        raise ValueError("E_L not in meta; pass it explicitly (mV).")
+    info = {}
+    for k, c in meta['channels'].items():
+        kind = 'exc' if c['E'] > E_L else 'inh'
+        info[k] = {
+            'col': f'input_{k}',
+            'kind': kind,
+            'short': f'ch {k} ({kind})',
+            'label': f"ch {k} rate (Hz) [E = {c['E']:g} mV, Q = {c['Q']:g} nS, τ = {c['tau']:g} ms]",
+            'color': syn_colors['E'] if kind == 'exc' else syn_colors['I'],
+            'marker': 'o' if kind == 'exc' else 's',
+        }
+    return info
+
+
+def tf_grid_values(df_data, channels):
+    """Unique input values per channel, and whether the table is a full grid."""
+    vals = {k: np.sort(df_data[f'input_{k}'].unique()) for k in channels}
+    n_expected = int(np.prod([len(v) for v in vals.values()]))
+    n_unique = len(df_data.drop_duplicates(subset=[f'input_{k}' for k in channels]))
+    return vals, (n_unique == n_expected == len(df_data))
+
+
+def tf_slice(df_data, fixed, atol=1e-6):
+    """Rows of *df_data* where each channel in *fixed* ({channel: rate}) is held at that rate."""
+    mask = np.ones(len(df_data), dtype=bool)
+    for k, v in fixed.items():
+        mask &= np.isclose(df_data[f'input_{k}'].to_numpy(), v, atol=atol)
+    if not mask.any():
+        raise ValueError(f"No rows with {fixed}; pick values from the sweep grid.")
+    return df_data.loc[mask]
+
+
+def tf_slice_2d(df_data, x_ch, y_ch, fixed, value_col='avg_f_out'):
+    """2D array of *value_col* over (x_ch, y_ch) with the other channels fixed.
+
+    Returns (x_vals, y_vals, values) with values of shape (n_y, n_x), the
+    layout used by heatmap_InOut, plot_contours, mesh_3d, plot_gain and
+    plot_InOut_relation.
+    """
+    sub = tf_slice(df_data, fixed)
+    return tf_grid_from_df(sub, exc_col=f'input_{x_ch}', inh_col=f'input_{y_ch}', value_col=value_col)
+
+
+def _fixed_suffix(fixed):
+    return '' if not fixed else ' | ' + ', '.join(f'ch {k} = {v:g} Hz' for k, v in fixed.items())
+
+
+# -------------------- #
+def plot_TF_output_summary(df_data, neuron_model, silent_thr=0.1):
+    """Distribution of the output rate and its std across all simulated inputs.
+
+    Left: histogram of avg_f_out (silent points, rate < *silent_thr* Hz,
+    counted in the title). Right: std_f_out against avg_f_out.
+    """
+    color = get_neuron_color(neuron_model)
+    f = df_data['avg_f_out'].to_numpy()
+    s = df_data['std_f_out'].to_numpy()
+    frac_silent = np.mean(f < silent_thr)
+
+    fig, axs = plt.subplots(1, 2, figsize=(12, 4.5))
+    axs[0].hist(f, bins=40, color=color, alpha=0.8)
+    axs[0].set_xlabel('Output frequency (Hz)')
+    axs[0].set_ylabel('Number of input points')
+    axs[0].set_title(f'{neuron_model}: {len(f)} points, {100 * frac_silent:.0f}% below {silent_thr:g} Hz')
+
+    axs[1].plot(f, s, 'o', color=color, alpha=0.5, markersize=4)
+    axs[1].set_xlabel('Output frequency (Hz)')
+    axs[1].set_ylabel('std of output frequency (Hz)')
+    axs[1].set_title('Output variability')
+    plt.tight_layout()
+    return fig
+
+
+# -------------------- #
+def plot_TF_main_effects(df_data, channel_info, neuron_model, n_bins=10):
+    """Output rate against each input channel, all other channels pooled.
+
+    One panel per channel: every simulated point (grey) plus the mean output
+    at each input value (grid data) or in *n_bins* bins (non-grid data, e.g.
+    LHS), drawn in the channel's synapse colour and marker.
+    """
+    chans = list(channel_info)
+    fig, axs = plt.subplots(1, len(chans), figsize=(4 * len(chans), 4), sharey=True)
+    axs = np.atleast_1d(axs)
+    for ax, k in zip(axs, chans):
+        ci = channel_info[k]
+        x = df_data[ci['col']].to_numpy()
+        y = df_data['avg_f_out'].to_numpy()
+        ax.plot(x, y, '.', color='#bdbdbd', alpha=0.5, markersize=3, zorder=1)
+
+        ux = np.unique(x)
+        if len(ux) <= 2 * n_bins:   # grid: average at each grid value
+            xm = ux
+            ym = np.array([y[x == u].mean() for u in ux])
+        else:                       # scattered: average in bins
+            edges = np.linspace(x.min(), x.max(), n_bins + 1)
+            idx = np.clip(np.digitize(x, edges) - 1, 0, n_bins - 1)
+            xm = 0.5 * (edges[:-1] + edges[1:])
+            ym = np.array([y[idx == b].mean() if np.any(idx == b) else np.nan for b in range(n_bins)])
+        ax.plot(xm, ym, '-', marker=ci['marker'], color=ci['color'], zorder=2, label='mean over other channels')
+        ax.set_xlabel(f"ch {k} rate (Hz)")
+        ax.set_title(ci['short'], color=ci['color'])
+    axs[0].set_ylabel('Output frequency (Hz)')
+    axs[0].legend(loc='upper left', fontsize=8)
+    fig.suptitle(f'{neuron_model}: output rate against each input channel')
+    plt.tight_layout()
+    return fig
+
+
+# -------------------- #
+def plot_TF_channel_curves(df_data, channel_info, neuron_model, reference, hue_ch):
+    """One-channel-at-a-time input–output curves around a reference point.
+
+    Panel k varies channel k while the remaining channels sit at *reference*
+    ({channel: rate}); within each panel one curve is drawn per value of
+    *hue_ch* (light -> dark for increasing rate). Error bars: std_f_out.
+    The panel of *hue_ch* itself shows a single curve.
+    """
+    chans = list(channel_info)
+    hue_vals = np.sort(df_data[f'input_{hue_ch}'].unique())
+    cmap = get_neuron_line_cmap(neuron_model)
+
+    fig, axs = plt.subplots(1, len(chans), figsize=(4 * len(chans), 4), sharey=True)
+    axs = np.atleast_1d(axs)
+    for ax, k in zip(axs, chans):
+        ci = channel_info[k]
+        curves = [None] if k == hue_ch else list(hue_vals)
+        colors = cmap(np.linspace(0, 1, max(len(curves), 2)))
+        for c_i, h in enumerate(curves):
+            fixed = {j: reference[j] for j in chans if j != k}
+            if h is not None:
+                fixed[hue_ch] = h
+            sub = tf_slice(df_data, fixed).sort_values(ci['col'])
+            color = ci['color'] if h is None else colors[c_i]
+            ax.errorbar(sub[ci['col']], sub['avg_f_out'], sub['std_f_out'],
+                        fmt='-', marker=ci['marker'], color=color, markersize=4, capsize=2,
+                        label=None if h is None else f'{h:g}')
+        ax.set_xlabel(f'ch {k} rate (Hz)')
+        ax.set_title(ci['short'], color=ci['color'])
+        if k != hue_ch:
+            ax.legend(title=f'ch {hue_ch} (Hz)', fontsize=7, title_fontsize=8)
+    axs[0].set_ylabel('Output frequency (Hz)')
+    ref_txt = ', '.join(f'ch {j} = {v:g}' for j, v in reference.items() if j != hue_ch)
+    fig.suptitle(f'{neuron_model}: one channel at a time (others at {ref_txt} Hz)')
+    plt.tight_layout()
+    return fig
+
+
+# -------------------- #
+def plot_TF_slice_grid(df_data, channel_info, neuron_model, x_ch, y_ch,
+                       row_ch=None, col_ch=None, fixed=None,
+                       value_col='avg_f_out', vmax=None,
+                       vmin=0, cmap=None, cbar_label='Output frequency (Hz)'):
+    """Small-multiple heatmaps of the N-dimensional TF ("dimensional stacking").
+
+    Each panel is a (x_ch, y_ch) heatmap; panels are arranged by the values of
+    *row_ch* (bottom -> top, increasing) and *col_ch* (left -> right,
+    increasing). Any further channel must be held fixed via *fixed*. All
+    panels share one colour scale, so panels can be compared directly.
+
+    For signed quantities (e.g. ``value_col='residual'``) pass a diverging
+    *cmap* and symmetric *vmin*/*vmax*.
+    """
+    fixed = dict(fixed or {})
+    row_vals = np.sort(df_data[f'input_{row_ch}'].unique()) if row_ch else [None]
+    col_vals = np.sort(df_data[f'input_{col_ch}'].unique()) if col_ch else [None]
+    nr, nc = len(row_vals), len(col_vals)
+
+    if vmax is None:
+        vmax = float(tf_slice(df_data, fixed)[value_col].max()) if fixed else float(df_data[value_col].max())
+    if cmap is None:
+        cmap = get_neuron_cmap(neuron_model)
+
+    fig, axs = plt.subplots(nr, nc, figsize=(1.9 * nc + 1.5, 1.7 * nr + 1.0),
+                            sharex=True, sharey=True, squeeze=False)
+    im = None
+    for r, rv in enumerate(row_vals):
+        for c, cv in enumerate(col_vals):
+            ax = axs[nr - 1 - r, c]   # increasing row value goes up
+            fx = dict(fixed)
+            if row_ch: fx[row_ch] = rv
+            if col_ch: fx[col_ch] = cv
+            xv, yv, val = tf_slice_2d(df_data, x_ch, y_ch, fx, value_col=value_col)
+            dx = (xv[1] - xv[0]) / 2 if len(xv) > 1 else 0.5
+            dy = (yv[1] - yv[0]) / 2 if len(yv) > 1 else 0.5
+            im = ax.imshow(val, origin='lower', aspect='auto', cmap=cmap, vmin=vmin, vmax=vmax,
+                           extent=[xv[0] - dx, xv[-1] + dx, yv[0] - dy, yv[-1] + dy])
+            if r == nr - 1 and col_ch:
+                ax.set_title(f'ch {col_ch} = {cv:g} Hz', fontsize=9, color=channel_info[col_ch]['color'])
+            if c == nc - 1 and row_ch:
+                ax.yaxis.set_label_position('right')
+                ax.set_ylabel(f'ch {row_ch} = {rv:g} Hz', fontsize=9, rotation=-90, va='bottom',
+                              color=channel_info[row_ch]['color'])
+    fig.supxlabel(f'ch {x_ch} rate (Hz)', color=channel_info[x_ch]['color'])
+    fig.supylabel(f'ch {y_ch} rate (Hz)', color=channel_info[y_ch]['color'])
+    fig.suptitle(f'{neuron_model}: {value_col}{_fixed_suffix(fixed)}')
+    fig.tight_layout(rect=(0, 0, 0.9, 1))
+    cax = fig.add_axes([0.92, 0.15, 0.015, 0.7])
+    fig.colorbar(im, cax=cax, label=cbar_label)
+    return fig
+
+def tf_slice_as_ei(df_data, x_ch, y_ch, fixed):
+    """2D slice of N-channel TF data in the layout of the e/i plotting functions.
+
+    Keeps the rows with the channels in *fixed* at the given rates, adds
+    ``input_exc`` (= ``input_<x_ch>``) and ``input_inh`` (= ``input_<y_ch>``),
+    and sorts by (input_inh, input_exc). The original ``input_1 ... input_N``
+    columns are kept, so N-channel TF evaluations (``TF_template``,
+    ``res_2_func``) still work on the slice. With it, plot_TF_fitting,
+    plot_TF_fitting_viridis, mesh_3d_with_fitting, plots_TF_fitting,
+    make_TF_gif, plot_residuals_TF_fitting, plot_abs_residuals_TF_fitting and
+    plot_membrane_potential_fluctuations can be used on N-channel data.
+    """
+    sub = tf_slice(df_data, fixed).copy()
+    sub['input_exc'] = sub[f'input_{x_ch}']
+    sub['input_inh'] = sub[f'input_{y_ch}']
+    return sub.sort_values(['input_inh', 'input_exc']).reset_index(drop=True)
+
+# -------------------- #
+def plot_membrane_fluctuations_overview(df_data, mu_V, sig_V, tau_V, neuron_model, sig_V_min=4e-3):
+    """(mu_V, sig_V, tau_V) over all input points, coloured by the output rate.
+
+    Left: sig_V against mu_V. Right: tau_V against mu_V. The dashed line marks
+    *sig_V_min* (V): below it the erfc (fluctuation-driven) approximation is
+    expected to degrade; the fraction of points below it is given in the title.
+    """
+    f = df_data['avg_f_out'].to_numpy()
+    order = np.argsort(f)  # draw active points on top
+    mu, sg, tv = 1e3 * np.asarray(mu_V)[order], 1e3 * np.asarray(sig_V)[order], 1e3 * np.asarray(tau_V)[order]
+    cmap = get_neuron_cmap(neuron_model) if neuron_model in neuron_cmaps else 'viridis'
+
+    fig, axs = plt.subplots(1, 2, figsize=(12, 4.5))
+    sc = axs[0].scatter(mu, sg, c=f[order], cmap=cmap, s=12)
+    axs[0].axhline(1e3 * sig_V_min, color='k', ls='--', lw=1)
+    axs[0].set_xlabel(r'$\mu_V$ (mV)')
+    axs[0].set_ylabel(r'$\sigma_V$ (mV)')
+    frac = np.mean(np.asarray(sig_V) < sig_V_min)
+    axs[0].set_title(fr'{100 * frac:.0f}% of points with $\sigma_V$ < {1e3 * sig_V_min:g} mV')
+
+    axs[1].scatter(mu, tv, c=f[order], cmap=cmap, s=12)
+    axs[1].set_xlabel(r'$\mu_V$ (mV)')
+    axs[1].set_ylabel(r'$\tau_V$ (ms)')
+    axs[1].set_title('Autocorrelation time')
+    fig.colorbar(sc, ax=axs, label='Output frequency (Hz)')
+    fig.suptitle(f'{neuron_model}: membrane potential fluctuations')
+    return fig
+
+
+# -------------------- #
+def plot_TF_fit_overview(df_data, neuron_model, mean_error, fit_col='fit_rate'):
+    """Fitted against simulated output rate over all input points.
+
+    Left: fit vs data with the identity line. Right: histogram of residuals
+    (data - fit). Works for any number of channels and for non-grid data.
+    """
+    color = get_neuron_color(neuron_model)
+    y = df_data['avg_f_out'].to_numpy()
+    yf = df_data[fit_col].to_numpy()
+    res = y - yf
+    lim = (min(y.min(), yf.min()) - 1, max(y.max(), yf.max()) + 1)
+
+    fig, axs = plt.subplots(1, 2, figsize=(12, 5))
+    axs[0].plot(lim, lim, color='#969696', lw=1, zorder=1)
+    axs[0].plot(y, yf, 'o', color=color, alpha=0.5, markersize=4, zorder=2)
+    axs[0].set_xlim(lim); axs[0].set_ylim(lim)
+    axs[0].set_aspect('equal')
+    axs[0].set_xlabel('Simulated output rate (Hz)')
+    axs[0].set_ylabel('Fitted output rate (Hz)')
+    axs[0].set_title(f'{neuron_model}: {len(y)} points, MSE = {mean_error:.3f} Hz$^2$')
+
+    axs[1].hist(res, bins=40, color=color, alpha=0.8)
+    axs[1].axvline(0, color='k', lw=1)
+    axs[1].set_xlabel('Residual, data - fit (Hz)')
+    axs[1].set_ylabel('Number of input points')
+    axs[1].set_title(f'max |residual| = {np.max(np.abs(res)):.2f} Hz')
+    plt.tight_layout()
+    return fig
+
+
+# -------------------- #
+def plot_TF_fit_error_by_channel(df_data, channel_info, neuron_model, fit_col='fit_rate'):
+    """Mean squared fit error at each input value of each channel (others pooled).
+
+    One panel per channel, in the channel's synapse colour and marker; shows
+    where in the input space the fit degrades. Same quantity as
+    ``ntmf.transfer_function.get_mean_error_distribution_general``.
+    """
+    chans = list(channel_info)
+    sq = (df_data['avg_f_out'] - df_data[fit_col]).to_numpy() ** 2
+    fig, axs = plt.subplots(1, len(chans), figsize=(4 * len(chans), 4), sharey=True)
+    axs = np.atleast_1d(axs)
+    for ax, k in zip(axs, chans):
+        ci = channel_info[k]
+        x = df_data[ci['col']].to_numpy()
+        ux = np.unique(x)
+        mse = np.array([sq[np.isclose(x, u)].mean() for u in ux])
+        ax.plot(ux, mse, '-', marker=ci['marker'], color=ci['color'])
+        ax.set_xlabel(f'ch {k} rate (Hz)')
+        ax.set_title(ci['short'], color=ci['color'])
+    axs[0].set_ylabel('Mean squared error (Hz$^2$)')
+    fig.suptitle(f'{neuron_model}: fit error against each input channel (others pooled)')
+    plt.tight_layout()
+    return fig
+
+# -------------------- #
+def plot_MF_single_pop(mf, driving_input, channel_info, neuron_model, nn=None, stats=None):
+    """Mean-field run of a single N-channel population, optionally against spiking neurons.
+
+    Top: input rate per channel (synapse colour; line style distinguishes
+    channels of the same kind). Middle: mu_V with a +/- sigma_V band.
+    Bottom: MF rate, the stationary rate TF(inputs), and, if *nn* is given,
+    the binned spiking population rate (with RMSE and Pearson r from *stats*).
+    """
+    styles = ['-', '--', ':', '-.']
+    seen = {'exc': 0, 'inh': 0}
+    color = get_neuron_color(neuron_model)
+    t = mf['t']
+
+    fig, axs = plt.subplots(3, 1, figsize=(10, 8), sharex=True,
+                            gridspec_kw={'height_ratios': [1, 1, 1.4]})
+    for k, ci in channel_info.items():
+        ls = styles[seen[ci['kind']] % len(styles)]
+        seen[ci['kind']] += 1
+        axs[0].plot(t, driving_input[k], ls, color=ci['color'], lw=1.5, label=ci['short'])
+    axs[0].set_ylabel('Input rate (Hz)')
+    axs[0].legend(loc='upper right', fontsize=8, ncol=len(channel_info))
+
+    mu, sg = 1e3 * np.asarray(mf['mu_V']), 1e3 * np.asarray(mf['sig_V'])
+    axs[1].fill_between(t, mu - sg, mu + sg, color=color, alpha=0.2, lw=0, label=r'$\mu_V \pm \sigma_V$')
+    axs[1].plot(t, mu, color=color, lw=1.5)
+    axs[1].set_ylabel('V (mV)')
+    axs[1].legend(loc='upper right', fontsize=8)
+
+    if nn is not None:
+        axs[2].step(nn['t'], nn['rate'], where='mid', color='#969696', lw=1.2, label='spiking neurons')
+    axs[2].plot(t, mf['TF'], ':', color='k', lw=1, label='stationary TF')
+    axs[2].plot(t, mf['nu'], color=color, lw=2, label='mean field')
+    axs[2].set_ylabel('Output rate (Hz)')
+    axs[2].set_xlabel('Time (s)')
+    axs[2].legend(loc='upper right', fontsize=8)
+    if stats is not None:
+        axs[2].set_title(f"RMSE = {stats['rmse']:.2f} Hz, Pearson r = {stats['corr']:.2f}", fontsize=10)
+
+    fig.suptitle(f'{neuron_model}: single-population mean field')
+    plt.tight_layout()
+    return fig

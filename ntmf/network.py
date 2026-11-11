@@ -152,6 +152,51 @@ def extracting_single_pop_freq_and_std(
 
     return float(np.mean(mean_rate[left_bound:right_bound])), float(np.std(std_rate[left_bound:right_bound]))
 
+def extracting_single_pop_freq_and_std_window(
+    sim_duration: b2.Quantity,
+    t_start: b2.Quantity,
+    t_end: b2.Quantity,
+    pop: b2.SpikeMonitor,
+    N_pop: int,
+    bin_size: float = 0.1,
+) -> tuple[float, float]:
+    """Mean and std firing rate of a single population inside [t_start, t_end).
+
+    Same statistics as ``extracting_single_pop_freq_and_std`` (mean over time
+    of the across-neuron mean rate; std over time of the across-neuron std),
+    but only bins lying entirely inside the window are used. To discard a
+    transient, pass ``t_start = p_start + delay``.
+
+    Parameters
+    ----------
+    t_start, t_end : brian2.Quantity
+        Averaging window.
+    bin_size : float
+        Bin width in seconds.
+
+    Returns
+    -------
+    (mean_rate, std_rate) in Hz.
+    """
+    t0 = float(t_start / b2.second)
+    t1 = float(t_end / b2.second)
+    if t1 <= t0:
+        raise ValueError(f"Empty averaging window [{t0}, {t1}) s.")
+
+    bin_edges = np.arange(0, sim_duration / b2.second + bin_size, bin_size)
+    time_bins = bin_edges[:-1]
+
+    spike_matrix = _build_spike_matrix(pop, N_pop, time_bins, bin_size)
+    mean_rate = np.mean(spike_matrix, axis=0)
+    std_rate = np.std(spike_matrix, axis=0)
+
+    eps = 1e-9  # guard against float rounding at bin edges
+    left_bound = int(np.ceil(t0 / bin_size - eps))
+    right_bound = int(np.floor(t1 / bin_size + eps))
+    if right_bound <= left_bound:
+        raise ValueError(f"No complete {bin_size} s bin inside [{t0}, {t1}) s.")
+
+    return float(np.mean(mean_rate[left_bound:right_bound])), float(np.std(std_rate[left_bound:right_bound]))
 
 def _build_spike_matrix(
     pop: b2.SpikeMonitor,

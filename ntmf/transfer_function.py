@@ -62,7 +62,17 @@ def membrane_potential_fluctuations(
     Returns
     -------
     (mu_V, sig_V, tau_V, tau_V_norm) : each a 1-D ndarray
+
+    N-channel models
+    ----------------
+    If *params* has a ``channels`` block (see
+    ``ntmf.config.get_params_model_SI_general``), the call is routed to
+    :func:`membrane_potential_fluctuations_general`, which reads the columns
+    ``input_1`` ... ``input_N``.
     """
+    if "channels" in params:
+        return membrane_potential_fluctuations_general(data=data, params=params, w_ad=w_ad)
+
     f_e = np.maximum(data["input_exc"].to_numpy(), 1e-9)
     f_i = np.maximum(data["input_inh"].to_numpy(), 1e-9)
 
@@ -104,6 +114,7 @@ def membrane_potential_fluctuations(
     return mu_V, sig_V, tau_V, tau_V_norm
 
 
+
 def membrane_potential_fluctuations_sim(
     f_e: float,
     f_i: float,
@@ -143,6 +154,153 @@ def membrane_potential_fluctuations_sim(
 
     return mu_V, sig_V, tau_V, tau_V_norm
 
+# ---------------------------------------------------------------------------
+# Membrane potential fluctuations -- N synaptic channels
+# ---------------------------------------------------------------------------
+
+def membrane_potential_fluctuations_rates(
+    rates: dict[str, np.ndarray | float],
+    params: dict,
+    w_ad: float | np.ndarray = 0.0,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """(μ_V, σ_V, τ_V, τ_V_norm) for N exponential synaptic channels.
+
+    Same equations as :func:`membrane_potential_fluctuations` (Zerlaut et al.,
+    2018, eq. 5–17), with the sums running over channels s and a synaptic
+    time constant τ_s per channel:
+
+        μ_Gs = ν_s K_s τ_s Q_s
+        μ_G  = g_L + Σ_s μ_Gs,          τ_m = C_m / μ_G
+        μ_V  = (Σ_s μ_Gs E_s + g_L E_L − w_ad) / μ_G
+        U_s  = Q_s (E_s − μ_V) / μ_G
+        σ_V² = Σ_s K_s ν_s (U_s τ_s)² / (2 (τ_m + τ_s))
+        τ_V  = Σ_s K_s ν_s (U_s τ_s)² / Σ_s [K_s ν_s (U_s τ_s)² / (τ_m + τ_s)]
+
+    With two channels sharing one τ_syn this is identical to the e/i version.
+
+    Parameters
+    ----------
+    rates : dict
+        {channel: rate in Hz}, scalars or arrays of equal length. The
+        channel's background rate ``nu_bg`` (if any) is added here.
+    params : dict
+        SI parameters with a ``channels`` block holding E, Q, tau, K (and
+        optionally nu_bg) for every channel.
+    w_ad : float or ndarray
+        Adaptation current (A).
+
+    Returns
+    -------
+    (mu_V, sig_V, tau_V, tau_V_norm) : ndarrays (0-d for scalar input)
+    """
+    chans = params["channels"]
+    missing = [k for k in chans if k not in rates]
+    if missing:
+        raise ValueError(f"No input rate given for channel(s) {missing}.")
+    no_K = [k for k, c in chans.items() if "K" not in c]
+    if no_K:
+        raise ValueError(f"K missing for channel(s) {no_K}; call adding_K_params_general first.")
+
+    nu = {k: np.maximum(np.asarray(rates[k], dtype=float) + c.get("nu_bg", 0.0), 1e-9)
+          for k, c in chans.items()}
+
+    # eq. 5-6 -- conductances and membrane time constant
+    mu_Gs = {k: nu[k] * c["K"] * c["tau"] * c["Q"] for k, c in chans.items()}
+    mu_G = params["g_L"] + sum(mu_Gs.values())
+    tau_m = params["C_m"] / mu_G
+
+    # eq. 7 -- mean membrane potential
+    mu_V = (sum(mu_Gs[k] * c["E"] for k, c in chans.items())
+            + params["g_L"] * params["E_L"] - w_ad) / mu_G
+
+    # eq. 15 and 17 -- std and autocorrelation time
+    num = 0.0   # Σ K ν (U τ)²
+    den = 0.0   # Σ K ν (U τ)² / (τ_m + τ)
+    for k, c in chans.items():
+        U = c["Q"] / mu_G * (c["E"] - mu_V)
+        term = c["K"] * nu[k] * (U * c["tau"]) ** 2
+        num = num + term
+        den = den + term / (tau_m + c["tau"])
+
+    sig_V = np.sqrt(0.5 * den)
+    tau_V = num / den
+    tau_V_norm = tau_V * params["g_L"] / params["C_m"]
+
+    return mu_V, sig_V, tau_V, tau_V_norm
+
+
+def membrane_potential_fluctuations_general(
+    data: pd.DataFrame,
+    params: dict,
+    w_ad: float | np.ndarray = 0.0,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """DataFrame wrapper of :func:`membrane_potential_fluctuations_rates`.
+
+    Reads the input rates from columns ``input_<channel>`` (``input_1`` ...
+    ``input_N``), as written by the N-channel TF extraction script.
+    """
+    rates = {}
+    for k in params["channels"]:
+        col = f"input_{k}"
+        if col not in data:
+            raise KeyError(f"Column '{col}' not in data (columns: {list(data.columns)}).")
+        rates[k] = data[col].to_numpy()
+    n = len(data)
+    w = np.full(n, w_ad, dtype=float) if np.ndim(w_ad) == 0 else np.asarray(w_ad, dtype=float)
+    return membrane_potential_fluctuations_rates(rates, params, w_ad=w)
+
+
+def TF_template_rates(
+    rates: dict[str, np.ndarray | float],
+    params: dict,
+    poly_params: np.ndarray | list,
+    alpha: float,
+    w_ad: float | np.ndarray = 0.0,
+) -> np.ndarray | float:
+    """N-channel transfer function from a {channel: rate} dict.
+
+    Same erfc formula as :func:`TF_template`; scalar or array rates. This is
+    the entry point for mean-field integration with N channels (the
+    counterpart of :func:`TF_template_sim`).
+    """
+    mu_V, sig_V, tau_V, tau_V_norm = membrane_potential_fluctuations_rates(rates, params, w_ad=w_ad)
+
+    sig_V_safe = np.maximum(sig_V, 1e-9)
+    tau_V_safe = np.maximum(tau_V, 1e-9)
+    eff_V_th = eff_thresh(mu_V=mu_V, sig_V=sig_V_safe, tau_V_norm=tau_V_norm, poly_params=poly_params)
+
+    z = (eff_V_th - mu_V) / (np.sqrt(2.0) * sig_V_safe)
+    F_out_th = np.maximum(alpha * sp_spec.erfc(z) / (2.0 * tau_V_safe), 0.0)
+    return float(F_out_th) if np.ndim(F_out_th) == 0 else F_out_th
+
+
+def get_mean_error_distribution_general(
+    df_data: pd.DataFrame,
+    poly_params: np.ndarray | list,
+    params: dict,
+    alpha: float,
+    slice_channel: str,
+    w_ad: float | np.ndarray = 0.0,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Mean squared error of the TF fit at each value of one channel.
+
+    N-channel counterpart of :func:`get_mean_error_distribution` (which
+    slices on ``input_inh``). All other channels are pooled.
+
+    Returns
+    -------
+    (values, errors) : rates of *slice_channel* and the MSE at each.
+    """
+    col = f"input_{slice_channel}"
+    values = np.sort(df_data[col].unique())
+    w_arr = np.asarray(w_ad)
+    errors = np.zeros(len(values))
+    for i, v in enumerate(values):
+        mask = np.isclose(df_data[col].to_numpy(), v, atol=1e-6)
+        w_slice = float(w_arr) if w_arr.ndim == 0 else w_arr[mask]
+        errors[i] = res_2_func(poly_params, data=df_data.loc[mask], params=params,
+                               alpha=alpha, w_ad=w_slice)
+    return values, errors
 
 # ---------------------------------------------------------------------------
 # Effective threshold
