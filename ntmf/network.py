@@ -2,8 +2,13 @@
 
 Provides functions to wire two-population (FS + RS) networks in Brian2
 and to extract population firing rates from SpikeMonitor objects.
-"""
 
+Networks with any number of populations and synaptic channels are built
+from a network config + protocol config (see the last section of the file).
+
+"""
+import json
+from pathlib import Path
 from typing import Any, Optional
 
 import brian2 as b2
@@ -231,3 +236,303 @@ def generate_ou_process(time, dt, mu, tau, sigma, x0=None):
         
     # Rectify to prevent negative firing rates
     return np.maximum(0, x)
+
+
+# ---------------------------------------------------------------------------
+# Config-driven network with any number of populations and synaptic channels
+# ---------------------------------------------------------------------------
+#
+# Network config (config/network_config_<name>.json), first list element:
+#
+#     "populations":          {name: {"neuron_model": str, "N": int}}
+#     "external_populations": {name: {"N": int}}                (Poisson sources)
+#     "internal_connections": {"source->target": {"ch": k, "conn_prob": p}}
+#     "external_connections": {"source->target": {"ch": k, "conn_prob": p}}
+#
+# Protocol config (config/input_config_<name>.json), first list element:
+#
+#     "external_populations": {name: {"background_freq": Hz,
+#                                      "stimulations": [{"t_start": s, "t_end": s, "freq": Hz}]}}
+#     "simulation":           {"sim_duration": s, "dt": ms}
+#
+# Channel numbers are local to the target: E_k, Q_k and tau_k are read from the
+# target population's neuron JSON. Several connections may share a channel.
+
+def _split_connection_key(key: str) -> tuple[str, str]:
+    """'source->target' -> ('source', 'target')."""
+    parts = [x.strip() for x in key.split("->")]
+    if len(parts) != 2 or not all(parts):
+        raise ValueError(f"Connection key '{key}' must have the form 'source->target'.")
+    return parts[0], parts[1]
+
+
+def all_connections(network_config: dict[str, Any]) -> dict[str, dict]:
+    """Internal and external connections in one dict, keyed 'source->target'."""
+    internal = network_config.get("internal_connections", {})
+    external = network_config.get("external_connections", {})
+    shared = set(internal) & set(external)
+    if shared:
+        raise ValueError(f"Connections listed both as internal and external: {sorted(shared)}")
+    return {**internal, **external}
+
+
+def load_neuron_model(
+    neuron_model: str,
+    model_folder: str | Path,
+    idx: int = 0,
+) -> dict[str, Any]:
+    """Entry ``idx`` of ``<model_folder>/<neuron_model>.json`` (metainfo, model, init, units)."""
+    with open(Path(model_folder) / f"{neuron_model}.json", "r") as fh:
+        return json.load(fh)[0][idx]
+
+
+def check_network_config(
+    network_config: dict[str, Any],
+    model_folder: str | Path,
+    input_config: Optional[dict[str, Any]] = None,
+    idx: int = 0,
+) -> None:
+    """Raise ``ValueError`` if the network (and protocol) configs are inconsistent.
+
+    Checks that every connection names known populations, that internal
+    sources are populations and external sources are external populations,
+    that the channel exists in the target's neuron JSON, that 0 <= conn_prob <= 1,
+    that population names are distinct from each other and from the neuron
+    model names of other populations (Brian2 names the NeuronGroup after its
+    neuron model), and, if *input_config* is given, that every external
+    population has a protocol entry and vice versa.
+    """
+    from ntmf.neurons import synaptic_channels_from_model  # local import, as in config.py
+
+    pops = network_config["populations"]
+    ext = network_config.get("external_populations", {})
+    errors = []
+
+    if set(pops) & set(ext):
+        errors.append(f"Names used both as population and external population: {sorted(set(pops) & set(ext))}")
+    models = [p["neuron_model"] for p in pops.values()]
+    if len(set(models)) != len(models):
+        errors.append("Two populations use the same neuron_model; Brian2 group names would clash.")
+
+    channels = {}
+    for name, p in pops.items():
+        m = load_neuron_model(p["neuron_model"], model_folder, idx)["model"]
+        channels[name] = [c["name"] for c in synaptic_channels_from_model(m)]
+
+    for kind, conns, src_pool in (
+        ("internal_connections", network_config.get("internal_connections", {}), pops),
+        ("external_connections", network_config.get("external_connections", {}), ext),
+    ):
+        for key, c in conns.items():
+            src, tgt = _split_connection_key(key)
+            if src not in src_pool:
+                errors.append(f"{kind}['{key}']: unknown source '{src}'.")
+            if tgt not in pops:
+                errors.append(f"{kind}['{key}']: unknown target population '{tgt}'.")
+                continue
+            if str(c["ch"]) not in channels[tgt]:
+                errors.append(f"{kind}['{key}']: channel {c['ch']} not in {pops[tgt]['neuron_model']} "
+                              f"(channels {channels[tgt]}).")
+            if not 0.0 <= float(c["conn_prob"]) <= 1.0:
+                errors.append(f"{kind}['{key}']: conn_prob {c['conn_prob']} outside [0, 1].")
+
+    if input_config is not None:
+        proto = input_config.get("external_populations", {})
+        if set(proto) != set(ext):
+            errors.append(f"Protocol / network external populations differ: "
+                          f"only in protocol {sorted(set(proto) - set(ext))}, "
+                          f"only in network {sorted(set(ext) - set(proto))}.")
+
+    if errors:
+        raise ValueError("Network config problems:\n  " + "\n  ".join(errors))
+
+
+def channel_in_degrees(
+    network_config: dict[str, Any],
+    by_source: bool = False,
+) -> dict[str, dict]:
+    """Expected in-degree per target population and channel.
+
+    K_ch = sum over the sources projecting onto that channel of N_src * conn_prob.
+
+    Returns
+    -------
+    ``{target: {ch: K}}``, or with ``by_source=True``
+    ``{target: {ch: {source: K_src}}}``. Channel keys are strings ("1", "2", ...).
+    Channels of a population that receive no connection do not appear.
+    """
+    sizes = {**{k: v["N"] for k, v in network_config.get("external_populations", {}).items()},
+             **{k: v["N"] for k, v in network_config["populations"].items()}}
+    out: dict[str, dict] = {}
+    for key, c in all_connections(network_config).items():
+        src, tgt = _split_connection_key(key)
+        ch = str(c["ch"])
+        out.setdefault(tgt, {}).setdefault(ch, {})
+        out[tgt][ch][src] = out[tgt][ch].get(src, 0.0) + sizes[src] * float(c["conn_prob"])
+    if by_source:
+        return out
+    return {t: {ch: float(sum(d.values())) for ch, d in chs.items()} for t, chs in out.items()}
+
+
+def external_rate_trace(
+    ext_spec: dict[str, Any],
+    times_s: np.ndarray,
+) -> np.ndarray:
+    """Rate (Hz) of one external population on *times_s* (seconds).
+
+    Background plus the ``freq`` of every stimulation window [t_start, t_end)
+    containing t; overlapping windows add (same rule as ``ntmf.meanfield_nchannels``).
+    """
+    rate = np.full(len(times_s), float(ext_spec.get("background_freq", 0.0)))
+    for stim in ext_spec.get("stimulations", []):
+        mask = (times_s >= stim["t_start"]) & (times_s < stim["t_end"])
+        rate[mask] += float(stim["freq"])
+    return rate
+
+
+def protocol_epochs(input_config: dict[str, Any]) -> list[tuple[float, float]]:
+    """Intervals (s) between consecutive stimulation on/offsets, covering the whole simulation."""
+    T = float(input_config["simulation"]["sim_duration"])
+    edges = {0.0, T}
+    for spec in input_config["external_populations"].values():
+        for stim in spec.get("stimulations", []):
+            edges.update(x for x in (float(stim["t_start"]), float(stim["t_end"])) if 0.0 < x < T)
+    edges = sorted(edges)
+    return list(zip(edges[:-1], edges[1:]))
+
+
+def build_network_from_config(
+    network_config: dict[str, Any],
+    input_config: dict[str, Any],
+    model_folder: str | Path,
+    curr_inj: Any = None,
+    seed: Optional[int] = None,
+    idx: int = 0,
+    rate_dt: b2.Quantity = 1 * b2.ms,
+) -> dict[str, Any]:
+    """Build a Brian2 network from a network config and a protocol config.
+
+    Every population is created with ``ntmf.neurons.create_AdEx_neuron`` from
+    ``<model_folder>/<neuron_model>.json``. Each external population is a
+    ``PoissonGroup`` whose rate follows its protocol entry (``external_rate_trace``).
+    Each connection 'source->target' becomes one ``Synapses`` object (Brian2
+    name 'source_to_target') adding the target's Q_k to its channel-k
+    conductance ``Gsyn<k>``; a population projecting onto itself gets no
+    self-connections (as in ``network_creation``).
+
+    All objects are collected in an explicit ``b2.Network``: Brian2's default
+    ``b2.run()`` only finds objects held in plain variables, not in dicts, and
+    would otherwise silently simulate nothing. Add monitors with
+    ``net.add(...)`` and run with ``net.run(duration, namespace=built["namespace"])``.
+
+    Parameters
+    ----------
+    curr_inj : brian2.TimedArray or None
+        Injected current shared by all populations (``Is = current(t)``).
+        None gives zero current.
+    seed : int or None
+        Passed to ``b2.seed`` before connecting and creating the Poisson inputs.
+    rate_dt : brian2.Quantity
+        Time step of the external rate TimedArrays.
+
+    Returns
+    -------
+    dict with keys ``network`` (b2.Network), ``populations`` {name: NeuronGroup},
+    ``external`` {name: PoissonGroup}, ``synapses`` {'source->target': Synapses},
+    ``namespace`` (to pass to ``net.run``), ``sim_duration`` and ``dt`` (Quantities).
+    """
+    from ntmf.neurons import create_AdEx_neuron  # local import: neurons imports config
+
+    check_network_config(network_config, model_folder, input_config, idx)
+
+    sim_duration = float(input_config["simulation"]["sim_duration"]) * b2.second
+    dt = float(input_config["simulation"]["dt"]) * b2.ms
+    b2.defaultclock.dt = dt
+    if seed is not None:
+        b2.seed(seed)
+
+    if curr_inj is None:
+        curr_inj = b2.TimedArray(np.zeros(2) * b2.amp, dt=sim_duration)
+    namespace: dict[str, Any] = {"current": curr_inj}
+
+    populations = {}
+    for name, p in network_config["populations"].items():
+        populations[name] = create_AdEx_neuron(
+            p["neuron_model"], Path(model_folder) / f"{p['neuron_model']}.json", idx, int(p["N"]), curr_inj
+        )
+
+    times_s = np.arange(0.0, float(sim_duration / b2.second), float(rate_dt / b2.second))
+    external = {}
+    for name, e in network_config.get("external_populations", {}).items():
+        rate = b2.TimedArray(external_rate_trace(input_config["external_populations"][name], times_s) * b2.Hz,
+                             dt=rate_dt)
+        namespace[f"rate_{name}"] = rate
+        external[name] = b2.PoissonGroup(int(e["N"]), rates=f"rate_{name}(t)",
+                                         namespace={f"rate_{name}": rate}, name=f"P_{name}")
+
+    synapses = {}
+    for key, c in all_connections(network_config).items():
+        src, tgt = _split_connection_key(key)
+        ch = str(c["ch"])
+        m = load_neuron_model(network_config["populations"][tgt]["neuron_model"], model_folder, idx)["model"]
+        source = populations[src] if src in populations else external[src]
+        S = b2.Synapses(source, populations[tgt], on_pre=f"Gsyn{ch}_post += Q_syn",
+                        namespace={"Q_syn": m[f"Q_{ch}"] * b2.nS}, name=f"{src}_to_{tgt}")
+        if src == tgt:
+            S.connect("i != j", p=float(c["conn_prob"]))
+        else:
+            S.connect(p=float(c["conn_prob"]))
+        synapses[key] = S
+
+    net = b2.Network(*populations.values(), *external.values(), *synapses.values())
+    return {"network": net, "populations": populations, "external": external, "synapses": synapses,
+            "namespace": namespace, "sim_duration": sim_duration, "dt": dt}
+
+
+def realized_in_degrees(built: dict[str, Any]) -> dict[str, np.ndarray]:
+    """Actual number of afferents of every target neuron, per connection.
+
+    Returns ``{'source->target': array of length N_target}``.
+    """
+    out = {}
+    for key, S in built["synapses"].items():
+        out[key] = np.bincount(np.asarray(S.j[:]), minlength=len(S.target))
+    return out
+
+
+def population_rates(
+    spike_mon: b2.SpikeMonitor,
+    N_pop: int,
+    sim_duration: b2.Quantity,
+    bin_size: float = 0.02,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Population-averaged rate (Hz) in bins of *bin_size* seconds.
+
+    Returns (bin centres in s, rate in Hz).
+    """
+    edges = np.arange(0.0, float(sim_duration / b2.second) + bin_size / 2, bin_size)
+    counts, _ = np.histogram(np.asarray(spike_mon.t / b2.second), bins=edges)
+    return edges[:-1] + bin_size / 2, counts / (N_pop * bin_size)
+
+
+def epoch_mean_rates(
+    spike_mons: dict[str, b2.SpikeMonitor],
+    sizes: dict[str, int],
+    epochs: list[tuple[float, float]],
+    skip: float = 0.2,
+) -> dict[str, list[float]]:
+    """Mean rate (Hz) of each population in every epoch, ignoring the first *skip* s.
+
+    Returns ``{population: [rate in epoch 0, rate in epoch 1, ...]}``.
+    """
+    out = {}
+    for name, mon in spike_mons.items():
+        t = np.asarray(mon.t / b2.second)
+        rates = []
+        for t0, t1 in epochs:
+            a = t0 + skip
+            if a >= t1:
+                raise ValueError(f"skip = {skip} s leaves nothing of epoch [{t0}, {t1}) s.")
+            rates.append(float(np.sum((t >= a) & (t < t1)) / (sizes[name] * (t1 - a))))
+        out[name] = rates
+    return out

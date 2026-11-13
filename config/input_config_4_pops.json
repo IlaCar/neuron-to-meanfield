@@ -1,0 +1,37 @@
+[
+    {
+        "metainfo": "Stimulation protocol for the 4-population example. Rate of each external population = background_freq + freq of every stimulation window containing t (t_start <= t < t_end); overlapping windows add.",
+        "external_populations": {
+            "ext_RS": {
+                "background_freq": 7.0,
+                "stimulations": [
+                    {"t_start": 1.0, "t_end": 3.0, "freq": 2.0},
+                    {"t_start": 5.0, "t_end": 7.0, "freq": 1.0}
+                ]
+            },
+            "ext_FS": {
+                "background_freq": 4.0,
+                "stimulations": [
+                    {"t_start": 2.0, "t_end": 3.0, "freq": 2.0},                    
+                    {"t_start": 6.0, "t_end": 7.0, "freq": 1.0}
+                ]
+            },
+            "ext_inh": {
+                "background_freq": 8.0,
+                "stimulations": [
+                    {"t_start": 2.0, "t_end": 4.0, "freq": 3.0},
+                    {"t_start": 5.0, "t_end": 7.0, "freq": 6.0}
+                ]
+            }
+        },
+        "simulation": {"sim_duration": 8.0, "dt": 0.1},
+        "units": {
+            "background_freq": "Hz",
+            "freq": "Hz",
+            "t_start": "s",
+            "t_end": "s",
+            "sim_duration": "s",
+            "dt": "ms"
+        }
+    }
+]

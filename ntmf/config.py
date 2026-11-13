@@ -16,8 +16,8 @@ import pandas as pd
 import os
 
 AdEx_IMPLEMENTED_NEURON_MODELS = ["FS", "RS", "RS_no_adapt"]
-IMPLEMENTED_NEURON_MODELS = ["FS", "RS", "RS_no_adapt", "GoC", "neuron_3_inputs", "neuron_4_inputs"]
-
+IMPLEMENTED_NEURON_MODELS = ["FS", "RS", "RS_no_adapt", "GoC", "neuron_3_inputs", "neuron_4_inputs",
+                             "RS_4_pops", "FS_4_pops", "RS_no_adapt_4_pops", "SST_4_pops"]
 
 # ---------------------------------------------------------------------------
 # Neuron model parameters

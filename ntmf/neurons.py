@@ -577,15 +577,11 @@ def create_AdEx_neuron(
     idx: int = 0,
     N_cell: int = 1,
     curr_inj: Any = None,
-    setting_simulation_Brian=None,
 ) -> b2.NeuronGroup:
     """Select the correct AdEx setup based on the cell JSON.
 
     Numbered channels (E_1, E_2, ...) -> ``setting_simulation_Brian_general``.
     Classic e/i                       -> the original ``setting_simulation_Brian``.
-
-    Pass the original function in as ``setting_simulation_Brian`` (or rely on it
-    being importable in ``neurons.py``).
     """
     with open(json_file_name, "r") as fh:
         model = json.load(fh)[0][idx]["model"]

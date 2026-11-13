@@ -19,6 +19,7 @@ import brian2 as b2
 color_palette = {"FS": '#f46d43',           # orange
                  "RS": '#225ea5',           # blue
                  "RS_no_adapt": '#41b6c4',  # teal
+                 "SST": '#762a83',          # purple                 
                  "input": '#9ecae1',        # light blue
                  "GoC": "#2171b5",          # blue
                  "current": "#737373"       # grey
@@ -3071,5 +3072,320 @@ def plot_MF_single_pop(mf, driving_input, channel_info, neuron_model, nn=None, s
         axs[2].set_title(f"RMSE = {stats['rmse']:.2f} Hz, Pearson r = {stats['corr']:.2f}", fontsize=10)
 
     fig.suptitle(f'{neuron_model}: single-population mean field')
+    plt.tight_layout()
+    return fig
+
+# -------------------- #
+# Networks with any number of populations (config-driven)
+# -------------------- #
+
+_EXTERNAL_COLOR = '#969696'   # grey for external Poisson populations
+_POP_MARKERS = ['o', 's', '^', 'D', 'v', 'P', 'X', 'h']
+
+
+def population_colors(names):
+    """{population name: colour}; names not in ``color_palette`` get neutral grey."""
+    return {n: color_palette.get(n, _DEFAULT_NEURON_COLOR) for n in names}
+
+
+def _channel_sign(neuron_model, ch, model_folder, idx=0):
+    """'E' if channel *ch* of *neuron_model* is depolarising (E_k > E_L), else 'I'."""
+    with open(os.path.join(model_folder, f'{neuron_model}.json'), 'r') as fh:
+        m = json.load(fh)[0][idx]['model']
+    return 'E' if m[f'E_{ch}'] > m['E_L'] else 'I'
+
+
+def _quad_bezier(p0, c, p2, n=200):
+    """Points of the quadratic Bezier curve p0 -> p2 with control point c."""
+    t = np.linspace(0.0, 1.0, n)[:, None]
+    return (1 - t) ** 2 * p0 + 2 * (1 - t) * t * c + t ** 2 * p2
+
+
+def _in_box(pts, centre, half_w, half_h, pad=0.0):
+    return (np.abs(pts[:, 0] - centre[0]) <= half_w + pad) & (np.abs(pts[:, 1] - centre[1]) <= half_h + pad)
+
+
+def _network_layout(pops, ext, edges):
+    """Position of every node of the network diagram.
+
+    Populations sit on an ellipse, so that a straight arrow between two of them
+    never crosses a third. Their order around the ellipse follows the
+    feedforward depth (sources on the left, targets on the right; connections
+    that close a loop are ignored for this). External inputs form a column on
+    the left, ordered by the height of their targets.
+    """
+    internal = [(s, t) for s, t, _c in edges if s in pops and s != t]
+    back, state = set(), {}
+
+    def _dfs(n):
+        state[n] = 'open'
+        for s, t in internal:
+            if s == n:
+                if state.get(t) == 'open':
+                    back.add((s, t))
+                elif t not in state:
+                    _dfs(t)
+        state[n] = 'done'
+
+    for n in pops:
+        if n not in state:
+            _dfs(n)
+    depth = {n: 0 for n in pops}
+    for _ in range(len(pops)):
+        for s, t in internal:
+            if (s, t) not in back and depth[t] < depth[s] + 1:
+                depth[t] = depth[s] + 1
+
+    n_pop = len(pops)
+    rx, ry = 1.1 + 0.3 * n_pop, 0.45 + 0.3 * n_pop
+    if n_pop == 1:
+        slots = [(0.0, 0.0)]
+    else:
+        ang = np.pi - 2 * np.pi * np.arange(n_pop) / n_pop
+        slots = [(rx * np.cos(a), ry * np.sin(a)) for a in ang]
+    # slots from left to right (top before bottom); nodes by depth, config order on ties
+    slot_order = sorted(range(n_pop), key=lambda k: (round(slots[k][0], 6), -slots[k][1]))
+    node_order = sorted(pops, key=lambda n: (depth[n], list(pops).index(n)))
+    pos = {n: slots[k] for n, k in zip(node_order, slot_order)}
+
+    targets = {n: [t for s, t, _c in edges if s == n] for n in ext}
+    ext_sorted = sorted(ext, key=lambda n: -np.mean([pos[t][1] for t in targets[n]] or [0.0]))
+    x_ext = -rx - 1.7
+    span = max(len(ext_sorted) - 1, 1)
+    for k, n in enumerate(ext_sorted):
+        pos[n] = (x_ext, 1.05 * (span / 2 - k) if len(ext_sorted) > 1 else 0.0)
+    return pos
+
+
+def plot_network_diagram(network_config, model_folder, idx=0, ax=None, colors=None):
+    """Draw populations, external inputs and connections of a config-driven network.
+
+    External inputs are in a column on the left; populations sit on an ellipse,
+    ordered by feedforward depth (see ``_network_layout``). Each connection is an arrow from source to target, green
+    for a depolarising and red for a hyperpolarising target channel
+    (``syn_colors``), labelled on the arrow with 'ch k, K = ...'
+    (K = N_source * conn_prob). Arrows bend to avoid other boxes; the two
+    directions of a reciprocal pair bend to opposite sides.
+    """
+    from matplotlib.path import Path as MplPath
+
+    pops = network_config['populations']
+    ext = network_config.get('external_populations', {})
+    conns = {**network_config.get('internal_connections', {}), **network_config.get('external_connections', {})}
+    edges = [(k.split('->')[0].strip(), k.split('->')[1].strip(), c) for k, c in conns.items()]
+    colors = colors or population_colors(pops)
+    sizes = {**{k: v['N'] for k, v in ext.items()}, **{k: v['N'] for k, v in pops.items()}}
+    pos = _network_layout(pops, ext, edges)
+    hw, hh = 0.4, 0.23  # half width and half height of a box
+
+    if ax is None:
+        xs0 = [x for x, _ in pos.values()]
+        ys0 = [y for _, y in pos.values()]
+        fig, ax = plt.subplots(figsize=(1.9 * (max(xs0) - min(xs0) + 1.2), 1.9 * (max(ys0) - min(ys0) + 1.4)))
+    else:
+        fig = ax.figure
+    xs = [x for x, _ in pos.values()]
+    ys = [y for _, y in pos.values()]
+    ax.set_xlim(min(xs) - hw - 0.1, max(xs) + hw + 0.1)
+    ax.set_ylim(min(ys) - hh - 0.45, max(ys) + hh + 0.6)
+    ax.axis('off')
+
+    pair = {(s, t) for s, t, _c in edges}
+    labels = []  # (text, colour, candidate points along the arrow, index of the arrow)
+    arrow_pts = []
+    for s, t, c in edges:
+        col = syn_colors[_channel_sign(pops[t]['neuron_model'], c['ch'], model_folder, idx)]
+        text = f"ch {c['ch']}, K = {sizes[s] * c['conn_prob']:g}"
+        p0 = np.array(pos[s], float)
+        if s == t:  # self-connection: loop above the box
+            loop = patches.FancyArrowPatch((p0[0] - 0.15, p0[1] + hh), (p0[0] + 0.15, p0[1] + hh),
+                                           connectionstyle='arc3,rad=-1.4', arrowstyle='-|>',
+                                           mutation_scale=11, color=col, lw=1.2, zorder=2)
+            ax.add_patch(loop)
+            labels.append((text, col, [p0 + [0, hh + 0.33]], None))
+            continue
+        p2 = np.array(pos[t], float)
+        d = p2 - p0
+        rads = [0.2, 0.32, 0.45] if (t, s) in pair else [0.0, 0.12, -0.12, 0.25, -0.25, 0.4, -0.4]
+        best = None
+        for rad in rads:
+            ctrl = (p0 + p2) / 2 + rad * np.array([d[1], -d[0]])
+            pts = _quad_bezier(p0, ctrl, p2)
+            vis = ~_in_box(pts, p0, hw, hh) & ~_in_box(pts, p2, hw, hh)
+            i0 = int(np.argmax(vis))
+            i1 = len(vis) - 1 - int(np.argmax(vis[::-1]))
+            seg = pts[i0:i1 + 1]
+            hits = sum(int(_in_box(seg, pos[n], hw, hh, 0.04).any()) for n in pos if n not in (s, t))
+            if best is None or hits < best[0]:
+                best = (hits, seg)
+            if hits == 0:
+                break
+        seg = best[1]
+        ax.add_patch(patches.FancyArrowPatch(path=MplPath(seg), arrowstyle='-|>', mutation_scale=11,
+                                             color=col, lw=1.2, zorder=2))
+        arc = np.r_[0, np.cumsum(np.hypot(*np.diff(seg, axis=0).T))]
+        cand = [seg[np.searchsorted(arc, f * arc[-1]).clip(0, len(seg) - 1)]
+                for f in (0.7, 0.6, 0.8, 0.5, 0.4, 0.3, 0.2)]
+        labels.append((text, col, cand, len(arrow_pts)))
+        arrow_pts.append(seg)
+
+    for n, (x, y) in pos.items():
+        is_ext = n in ext
+        ax.add_patch(patches.FancyBboxPatch((x - hw, y - hh), 2 * hw, 2 * hh, boxstyle='round,pad=0.01',
+                                            fc='white' if is_ext else colors[n],
+                                            ec=_EXTERNAL_COLOR if is_ext else colors[n], lw=1.5, zorder=3))
+        txt = f"{n}\nN = {sizes[n]}" if is_ext else f"{n}\n{pops[n]['neuron_model']}\nN = {sizes[n]}"
+        ax.text(x, y, txt, ha='center', va='center', fontsize=7, zorder=4, linespacing=1.3,
+                color=_EXTERNAL_COLOR if is_ext else 'white', fontweight='bold')
+
+    # Place each label on its own arrow, at the candidate point where it covers the
+    # least: boxes and labels already placed weigh most, other arrows less.
+    renderer = fig.canvas.get_renderer()
+    to_data = ax.transData.inverted()
+    taken = [np.array([x - hw, y - hh, x + hw, y + hh]) for x, y in pos.values()]
+
+    def score(b, own):
+        area = sum(max(0.0, min(b[2], o[2]) - max(b[0], o[0])) * max(0.0, min(b[3], o[3]) - max(b[1], o[1]))
+                   for o in taken)
+        cover = sum(int(((q[:, 0] > b[0]) & (q[:, 0] < b[2]) & (q[:, 1] > b[1]) & (q[:, 1] < b[3])).any())
+                    for k, q in enumerate(arrow_pts) if k != own)
+        return 100.0 * area + cover
+
+    for text, col, cand, own in labels:
+        tx = ax.text(*cand[0], text, ha='center', va='center', fontsize=7, color=col, zorder=5,
+                     bbox=dict(boxstyle='round,pad=0.12', fc='white', ec='none', alpha=0.9))
+        best = None
+        for pnt in cand:
+            tx.set_position(pnt)
+            ext_box = tx.get_window_extent(renderer).expanded(1.1, 1.2)
+            (x0, y0), (x1, y1) = to_data.transform([[ext_box.x0, ext_box.y0], [ext_box.x1, ext_box.y1]])
+            bb = np.array([x0, y0, x1, y1])
+            sc = score(bb, own)
+            if best is None or sc < best[0]:
+                best = (sc, pnt, bb)
+            if sc == 0:
+                break
+        tx.set_position(best[1])
+        taken.append(best[2])
+
+    ax.plot([], [], color=syn_colors['E'], label='depolarising channel')
+    ax.plot([], [], color=syn_colors['I'], label='hyperpolarising channel')
+    ax.legend(frameon=False, fontsize=7, loc='lower left', ncol=2)
+    return fig
+
+
+def plot_in_degree_histograms(built, network_config, ncols=3):
+    """Realised in-degree per connection vs the binomial(N_source, conn_prob) expectation."""
+    from scipy.stats import binom
+    from ntmf.network import realized_in_degrees, all_connections
+
+    deg = realized_in_degrees(built)
+    conns = all_connections(network_config)
+    sizes = {**{k: v['N'] for k, v in network_config.get('external_populations', {}).items()},
+             **{k: v['N'] for k, v in network_config['populations'].items()}}
+    colors = population_colors(network_config['populations'])
+    n = len(deg)
+    nrows = int(np.ceil(n / ncols))
+    fig, axs = plt.subplots(nrows, ncols, figsize=(3.4 * ncols, 2.4 * nrows), squeeze=False)
+    for ax, (key, d) in zip(axs.flat, deg.items()):
+        src, tgt = [x.strip() for x in key.split('->')]
+        N_src, p = sizes[src], conns[key]['conn_prob']
+        if src == tgt:
+            N_src -= 1  # no self-connections
+        k = np.arange(d.min(), d.max() + 1)
+        ax.hist(d, bins=np.arange(d.min() - 0.5, d.max() + 1.5), density=True,
+                color=colors[tgt], alpha=0.6)
+        ax.plot(k, binom.pmf(k, N_src, p), 'k-', lw=1, label='binomial')
+        ax.set_title(f"{key}  (ch {conns[key]['ch']})", fontsize=9)
+        ax.text(0.98, 0.95, f"mean {d.mean():.1f}\nexpected {N_src * p:.1f}", transform=ax.transAxes,
+                ha='right', va='top', fontsize=7.5)
+        ax.set_xlabel('afferents per neuron', fontsize=8)
+        ax.spines[['top', 'right']].set_visible(False)
+    for ax in axs.flat[n:]:
+        ax.axis('off')
+    axs.flat[0].legend(frameon=False, fontsize=7, loc='upper left')
+    plt.tight_layout()
+    return fig
+
+
+def plot_external_rates(input_config, network_config, ax=None, dt=0.001):
+    """Rate of every external population over the protocol, labelled with its targets."""
+    from ntmf.network import external_rate_trace
+
+    T = float(input_config['simulation']['sim_duration'])
+    t = np.arange(0.0, T, dt)
+    targets = {}
+    for key in network_config.get('external_connections', {}):
+        s, tg = [x.strip() for x in key.split('->')]
+        targets.setdefault(s, []).append(tg)
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(10, 2.2))
+    else:
+        fig = ax.figure
+    pop_colors = population_colors(network_config['populations'])
+    for k, (name, spec) in enumerate(input_config['external_populations'].items()):
+        tg = targets.get(name, [])
+        col = pop_colors[tg[0]] if len(tg) == 1 else _EXTERNAL_COLOR
+        ax.plot(t, external_rate_trace(spec, t), color=col, lw=1.4,
+                ls=['-', '--', ':', '-.'][k % 4], label=f"{name} → {', '.join(tg)}")
+    ax.set_ylabel('Input rate (Hz)')
+    ax.set_xlabel('Time (s)')
+    ax.legend(frameon=False, fontsize=7, bbox_to_anchor=(1.01, 1), loc='upper left')
+    ax.spines[['top', 'right']].set_visible(False)
+    return fig
+
+
+def _add_epoch_lines(ax, epochs):
+    if epochs:
+        for t0, _ in epochs[1:]:
+            ax.axvline(t0, color='0.85', lw=0.6, zorder=0)
+
+
+def network_raster_plot_pops(spike_mons, sizes, colors=None, epochs=None, max_neurons=500, markersize=1):
+    """Raster of several populations stacked from the bottom; at most *max_neurons* shown per population."""
+    colors = colors or population_colors(spike_mons)
+    fig, ax = plt.subplots(figsize=(10, 6))
+    offset, ticks = 0, [0]
+    for name, mon in spike_mons.items():
+        n_show = min(sizes[name], max_neurons)
+        i = np.asarray(mon.i)
+        keep = i < n_show
+        ax.plot(np.asarray(mon.t / b2.second)[keep], i[keep] + offset, '.', color=colors[name],
+                markersize=markersize, rasterized=True)
+        ax.text(1.01, offset + n_show / 2, f'{name}\n({n_show}/{sizes[name]})', color=colors[name],
+                transform=ax.get_yaxis_transform(), va='center', fontsize=9)
+        offset += n_show
+        ticks.append(offset)
+    _add_epoch_lines(ax, epochs)
+    ax.set_yticks(ticks)
+    ax.set_ylim(0, offset)
+    ax.set_xlabel('Time (s)')
+    ax.set_ylabel('Neurons')
+    ax.spines[['top', 'right']].set_visible(False)
+    plt.tight_layout()
+    return fig
+
+
+def plot_network_pop_rates(spike_mons, sizes, sim_duration, colors=None, bin_size=0.02, epochs=None,
+                           epoch_rates=None, skip=0.2):
+    """One panel per population: binned population rate, optionally with epoch means as horizontal bars."""
+    from ntmf.network import population_rates
+
+    colors = colors or population_colors(spike_mons)
+    n = len(spike_mons)
+    fig, axs = plt.subplots(n, 1, figsize=(10, 1.6 * n + 0.6), sharex=True, squeeze=False)
+    for k, (ax, (name, mon)) in enumerate(zip(axs[:, 0], spike_mons.items())):
+        t, r = population_rates(mon, sizes[name], sim_duration, bin_size)
+        ax.plot(t, r, color=colors[name], lw=1)
+        if epoch_rates is not None and epochs is not None:
+            for (t0, t1), m in zip(epochs, epoch_rates[name]):
+                ax.plot([t0 + skip, t1], [m, m], color='k', lw=1.5)
+        _add_epoch_lines(ax, epochs)
+        ax.set_ylabel(f'{name}\n(Hz)')
+        ax.spines[['top', 'right']].set_visible(False)
+    axs[-1, 0].set_xlabel('Time (s)')
+    if epoch_rates is not None:
+        axs[0, 0].plot([], [], 'k', lw=1.5, label=f'epoch mean (first {skip} s skipped)')
+        axs[0, 0].legend(frameon=False, fontsize=7, loc='upper right')
     plt.tight_layout()
     return fig

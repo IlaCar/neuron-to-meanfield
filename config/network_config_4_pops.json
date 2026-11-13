@@ -1,0 +1,36 @@
+[
+    {
+        "metainfo": "4-population example network: RS, FS and RS_no_adapt are driven by external Poisson inputs and project onto an SST-like population with 3 synaptic channels; SST projects back onto RS (ch 4)..",
+        "populations": {
+            "RS":          {"neuron_model": "RS_4_pops",          "N": 2000},
+            "FS":          {"neuron_model": "FS_4_pops",          "N": 500},
+            "RS_no_adapt": {"neuron_model": "RS_no_adapt_4_pops", "N": 1000},
+            "SST":         {"neuron_model": "SST_4_pops",         "N": 200}
+        },
+        "external_populations": {
+            "ext_RS":   {"N": 8000},
+            "ext_FS":   {"N": 8000},
+            "ext_inh":  {"N": 2000}
+        },
+        "internal_connections": {
+            "RS->SST":          {"ch": 1, "conn_prob": 0.05},
+            "FS->SST":          {"ch": 2, "conn_prob": 0.1},
+            "FS->RS":           {"ch": 2, "conn_prob": 0.03},
+            "FS->RS_no_adapt":  {"ch": 2, "conn_prob": 0.1},
+            "RS_no_adapt->SST": {"ch": 3, "conn_prob": 0.04},
+            "SST->RS":          {"ch": 4, "conn_prob": 0.1}
+        },
+        "external_connections": {
+            "ext_RS->RS":            {"ch": 1, "conn_prob": 0.05},
+            "ext_inh->RS":           {"ch": 2, "conn_prob": 0.05},
+            "ext_FS->FS":            {"ch": 1, "conn_prob": 0.05},
+            "ext_inh->FS":           {"ch": 2, "conn_prob": 0.05},
+            "ext_RS->RS_no_adapt": {"ch": 1, "conn_prob": 0.05},
+            "ext_inh->RS_no_adapt":  {"ch": 2, "conn_prob": 0.05}
+        },
+        "units": {
+            "N": "neurons",
+            "conn_prob": "probability per source-target pair"
+        }
+    }
+]

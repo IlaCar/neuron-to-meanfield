@@ -1,0 +1,67 @@
+[
+    [
+        {
+            "metainfo": "SST-like adapting interneuron for the 4-population example. Parameters chosen to reproduce qualitative SST features (higher input resistance than RS/FS, low firing threshold, spike-frequency adaptation); not taken from a published AdEx parameter set. Remaining parameters as RS.json.",
+            "channels": {
+                "1": "fast excitatory, from RS",
+                "2": "inhibitory, from FS",
+                "3": "slow excitatory, from RS_no_adapt"
+            },
+            "model": {
+                "C_m": 0.2,
+                "g_L": 0.005,
+                "E_L": -65,
+                "I_e": 0,
+                "a": 2,
+                "b": 0.03,
+                "tau_w": 300,
+                "V_th": -55,
+                "Delta_T": 2,
+                "V_reset": -65,
+                "V_peak_detect": -40,
+                "V_peak": 0,
+                "t_ref": 5,
+                "E_1": 0,
+                "Q_1": 1.5,
+                "tau_1": 5,
+                "E_2": -80,
+                "Q_2": 5.0,
+                "tau_2": 5,
+                "E_3": 0,
+                "Q_3": 1.0,
+                "tau_3": 10
+            },
+            "init": {
+                "v": -65,
+                "w": 0,
+                "g_1": 0,
+                "g_2": 0,
+                "g_3": 0
+            },
+            "units": {
+                "C_m": "nF",
+                "g_L": "uS",
+                "E_L": "mV",
+                "I_e": "nA",
+                "a": "nS",
+                "b": "nA",
+                "tau_w": "ms",
+                "V_th": "mV",
+                "Delta_T": "mV",
+                "V_reset": "mV",
+                "V_peak_detect": "mV",
+                "V_peak": "mV",
+                "t_ref": "ms",
+                "E_1": "mV",
+                "Q_1": "nS",
+                "tau_1": "ms",
+                "E_2": "mV",
+                "Q_2": "nS",
+                "tau_2": "ms",
+                "E_3": "mV",
+                "Q_3": "nS",
+                "tau_3": "ms"
+            }
+        }
+    ]
+]
