@@ -536,3 +536,163 @@ def epoch_mean_rates(
             rates.append(float(np.sum((t >= a) & (t < t1)) / (sizes[name] * (t1 - a))))
         out[name] = rates
     return out
+
+# ---------------------------------------------------------------------------
+# TF sweep for one population of a config-driven network
+# ---------------------------------------------------------------------------
+#
+# Used by transfer_function/data_extraction/TF_data_extraction_network.py.
+# Sweep config (config/input_config_TF_<name>.json), first list element:
+#
+#     "network_config": file name, relative to the sweep config
+#     "protocol":       {"sim_duration": s, "p_start": s, "p_end": s, "bin_size": s,
+#                        "dt": ms, "N_cell": int, "seed": int}
+#     "populations":    {name: {"delay": s, "channels": {k: {"min", "max", "step", "power"}},
+#                               "sampling": {"mode": "grid"} or {"mode": "lhs", "n_samples", "seed"}}}
+
+def get_TF_sweep_config_network(
+    json_file_name: str | Path,
+    population: str,
+    channel_names: list[str],
+    network_config: dict[str, Any] | str | Path | None = None,
+) -> dict[str, Any]:
+    """Load the TF sweep of one population of a network and build the input samples.
+
+    Network counterpart of :func:`get_TF_sweep_config`. The number of inputs
+    per channel is not set in the sweep config: it is taken from the network
+    config, so the TF is extracted with the in-degrees the population has in
+    the network (:func:`channel_in_degrees`). Each channel is swept at the merged rate
+    ``nu_eff = sum_src K_src * nu_src / K_ch``.
+
+    Expected JSON layout::
+
+        "network_config": "network_config_4_pops.json",   (relative to this file)
+        "protocol": {"sim_duration": 7, "p_start": 2, "p_end": 5, "bin_size": 0.25,
+                     "dt": 0.1, "N_cell": 5, "seed": 12345},
+        "populations": {
+            "<pop>": {
+                "delay": 1.0,
+                "channels": {"k": {"min": ..., "max": ..., "step": ..., "power": 1.0}, ...},
+                "sampling": {"mode": "grid"}  or  {"mode": "lhs", "n_samples": ..., "seed": ...}
+            }, ...
+        }
+
+    ``grid`` takes the Cartesian product of the per-channel ranges (last
+    channel varies fastest). ``lhs`` draws ``n_samples`` Latin-hypercube points
+    and ignores ``step``; the optional per-channel ``power`` (default 1) maps
+    the unit coordinate u to ``min + (max - min) * u**power``, so ``power`` > 1
+    puts more samples at low rates.
+
+    Parameters
+    ----------
+    json_file_name : str or Path
+        Path to the sweep config.
+    population : str
+        Population name, as in the network config.
+    channel_names : list of str
+        Channel names of the population's neuron model, in order. Channels
+        that receive no connection in the network are not swept (rate 0).
+    network_config : dict, str or Path, optional
+        Network config (first list element) or its path; overrides the
+        ``network_config`` entry of the sweep config.
+
+    Returns
+    -------
+    dict with keys
+        ``channels`` : {name: {"K", "sources", "background_freq", "min", "max", "step", "power"}},
+                   ``sources`` = [{"source", "N", "conn_prob", "K"}, ...] (from ``channel_in_degrees``),
+                       swept channels only
+        ``swept``    : list of swept channel names (columns of ``samples``)
+        ``unused``   : model channels without inputs in the network
+        ``samples``  : ndarray, shape (n_samples, len(swept)), nu_eff in Hz
+        ``sampling``, ``protocol``, ``delay``,
+        ``network_config_file`` (None if a dict was passed)
+    """
+    import itertools
+
+    json_file_name = Path(json_file_name)
+    with open(json_file_name, "r") as fh:
+        cfg = json.load(fh)[0]
+    network_config_file = None
+    if network_config is None:
+        network_config = json_file_name.parent / cfg["network_config"]
+    if not isinstance(network_config, dict):
+        network_config_file = str(network_config)
+        with open(network_config, "r") as fh:
+            network_config = json.load(fh)[0]
+    net_cfg = network_config
+
+    if population not in cfg["populations"]:
+        raise ValueError(f"Population '{population}' not in the sweep config ({list(cfg['populations'])}).")
+    pop_cfg = cfg["populations"][population]
+    ch_cfg = {str(k): v for k, v in pop_cfg["channels"].items()}
+
+    if population not in net_cfg["populations"]:
+        raise ValueError(f"Population '{population}' not in the network config ({list(net_cfg['populations'])}).")
+    sizes = {**{k: v["N"] for k, v in net_cfg.get("external_populations", {}).items()},
+             **{k: v["N"] for k, v in net_cfg["populations"].items()}}
+    K_src = channel_in_degrees(net_cfg, by_source=True).get(population, {})
+    if not K_src:
+        raise ValueError(f"No connections target population '{population}'.")
+    # per source: N and the conn_prob that gives its K (conn_prob of the config, summed if listed twice)
+    sources = {ch: [{"source": s, "N": int(sizes[s]), "conn_prob": K / sizes[s], "K": K}
+                    for s, K in d.items()]
+               for ch, d in K_src.items()}
+    not_in_model = [k for k in sources if k not in channel_names]
+    if not_in_model:
+        raise ValueError(f"Network connects to channels {not_in_model} of '{population}', "
+                         f"but its neuron model only has channels {list(channel_names)}.")
+    swept = [k for k in channel_names if k in sources]
+    unused = [k for k in channel_names if k not in sources]
+    if sorted(ch_cfg, key=int) != swept:
+        raise ValueError(f"Sweep config channels {sorted(ch_cfg, key=int)} of '{population}' do not match "
+                         f"the channels it receives in the network {swept}.")
+
+    channels: dict[str, dict[str, Any]] = {}
+    for k in swept:
+        c = ch_cfg[k]
+        channels[k] = {
+            "K": float(sum(s["K"] for s in sources[k])),
+            "sources": sources[k],
+            "background_freq": 0.0,   # every input of the network is in nu_eff
+            "min": float(c["min"]),
+            "max": float(c["max"]),
+            "step": float(c.get("step", 0.0)),
+            "power": float(c.get("power", 1.0)),
+        }
+        if channels[k]["min"] < 0 or channels[k]["max"] < channels[k]["min"]:
+            raise ValueError(f"Channel {k} of '{population}': need 0 <= min <= max.")
+
+    sampling = pop_cfg.get("sampling", {"mode": "grid"})
+    mode = sampling.get("mode", "grid")
+    lo = np.array([channels[k]["min"] for k in swept])
+    hi = np.array([channels[k]["max"] for k in swept])
+
+    if mode == "grid":
+        axes = []
+        for k in swept:
+            c = channels[k]
+            if c["step"] <= 0 or c["max"] == c["min"]:
+                axes.append(np.array([c["min"]]))
+            else:
+                axes.append(np.round(np.arange(c["min"], c["max"] + 0.5 * c["step"], c["step"]), 10))
+        samples = np.array(list(itertools.product(*axes)), dtype=float)
+    elif mode == "lhs":
+        from scipy.stats import qmc
+
+        n_samples = int(sampling["n_samples"])
+        seed = sampling.get("seed")
+        try:  # scipy >= 1.15 uses `rng`; older versions only accept `seed`
+            sampler = qmc.LatinHypercube(d=len(swept), rng=seed)
+        except TypeError:
+            sampler = qmc.LatinHypercube(d=len(swept), seed=seed)
+        power = np.array([channels[k]["power"] for k in swept])
+        samples = lo + sampler.random(n_samples) ** power * (hi - lo)
+        samples = np.round(samples, 4)   # exact in the %.6g .dat rows below 100 Hz; keeps --resume consistent
+    else:
+        raise ValueError(f"Unknown sampling mode '{mode}'; use 'grid' or 'lhs'.")
+
+    return {"channels": channels, "swept": swept, "unused": unused, "samples": samples,
+            "sampling": sampling, "protocol": cfg["protocol"],
+            "delay": float(pop_cfg.get("delay", 0.0)),
+            "network_config_file": network_config_file}

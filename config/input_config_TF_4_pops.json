@@ -1,0 +1,110 @@
+[
+    {
+        "metainfo": "TF sweep for the 4-population network. One sweep dimension per synaptic channel, at the merged rate nu_eff = sum_src K_src * nu_src / K_ch; K per channel is read from network_config. Ranges set from the pilot scan (input_config_TF_4_pops_pilot.json): per channel, from 0 to where the neuron is silenced or saturates, capped by rates the sources can reach.",
+        "network_config": "network_config_4_pops.json",
+        "protocol": {
+            "sim_duration": 7.0,
+            "p_start": 2.0,
+            "p_end": 5.0,
+            "bin_size": 0.25,
+            "dt": 0.1,
+            "N_cell": 5,
+            "seed": 12345
+        },
+        "populations": {
+            "RS": {
+                "delay": 1.0,
+                "channels": {
+                    "1": {
+                        "min": 0.0,
+                        "max": 30.0
+                    },
+                    "2": {
+                        "min": 0.0,
+                        "max": 40.0
+                    },
+                    "4": {
+                        "min": 0.0,
+                        "max": 60.0,
+                        "power": 1.5
+                    }
+                },
+                "sampling": {
+                    "mode": "lhs",
+                    "n_samples": 1200,
+                    "seed": 12345
+                }
+            },
+            "FS": {
+                "delay": 0.0,
+                "channels": {
+                    "1": {
+                        "min": 0.0,
+                        "max": 25.0
+                    },
+                    "2": {
+                        "min": 0.0,
+                        "max": 40.0
+                    }
+                },
+                "sampling": {
+                    "mode": "lhs",
+                    "n_samples": 400,
+                    "seed": 12345
+                }
+            },
+            "RS_no_adapt": {
+                "delay": 0.0,
+                "channels": {
+                    "1": {
+                        "min": 0.0,
+                        "max": 30.0
+                    },
+                    "2": {
+                        "min": 0.0,
+                        "max": 35.0
+                    }
+                },
+                "sampling": {
+                    "mode": "lhs",
+                    "n_samples": 400,
+                    "seed": 12345
+                }
+            },
+            "SST": {
+                "delay": 1.0,
+                "channels": {
+                    "1": {
+                        "min": 0.0,
+                        "max": 40.0
+                    },
+                    "2": {
+                        "min": 0.0,
+                        "max": 60.0
+                    },
+                    "3": {
+                        "min": 0.0,
+                        "max": 75.0
+                    }
+                },
+                "sampling": {
+                    "mode": "lhs",
+                    "n_samples": 1200,
+                    "seed": 12345
+                }
+            }
+        },
+        "units": {
+            "sim_duration": "s",
+            "p_start": "s",
+            "p_end": "s",
+            "bin_size": "s",
+            "dt": "ms",
+            "delay": "s",
+            "min": "Hz",
+            "max": "Hz",
+            "step": "Hz",
+            "power": "dimensionless (LHS coordinate u -> min + (max - min) * u**power)"
+        }
+    }
+]
